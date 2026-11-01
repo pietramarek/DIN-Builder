@@ -9,6 +9,15 @@ const SECTIONS=[1.5,2.5,4,6,10,16];
 // Standard commercially available ratings for modular main switches and RCDs (not a normative table).
 const PROT_IN=[25,32,40,50,63,80,100];
 const RCD_TYPES=['','AC','A','F','B'];
+// Built-in board templates: circuit list plus wizard options. Powers and lengths are typical examples to edit.
+const T=(name,power,phases,kind,length)=>({name,power,phases,kind,length});
+const HOUSE=[T('Oświetlenie parter',400,1,'light',25),T('Oświetlenie piętro',300,1,'light',30),T('Oświetlenie zewnętrzne',200,1,'light',35),T('Gniazda salon',2000,1,'socket',20),T('Gniazda kuchnia blat',2000,1,'socket',15),T('Lodówka',300,1,'socket',12),T('Zmywarka',2200,1,'other',14),T('Pralka',2200,1,'other',18),T('Łazienka parter',2000,1,'socket',16),T('Łazienka piętro',2000,1,'socket',24),T('Gniazda pokoje parter',2000,1,'socket',22),T('Gniazda pokoje piętro',2000,1,'socket',28),T('Piekarnik',3500,1,'other',14),T('Płyta indukcyjna',7400,3,'other',14),T('Garaż – gniazda',2000,1,'socket',25),T('Brama i furtka',500,1,'other',40)];
+const TEMPLATES=[
+ {id:'flat',name:'Mieszkanie 1-fazowe',note:'Typowe mieszkanie w bloku, zasilanie 1-fazowe.',opts:{supply:'1F',system:'TN-C-S',groupSize:5,rcdMode:'groups'},circuits:[T('Oświetlenie pokoje',300,1,'light',18),T('Oświetlenie kuchnia, łazienka, przedpokój',200,1,'light',15),T('Gniazda pokój dzienny',2000,1,'socket',14),T('Gniazda sypialnia',2000,1,'socket',16),T('Gniazda kuchnia blat',2000,1,'socket',10),T('Lodówka',300,1,'socket',9),T('Zmywarka',2200,1,'other',10),T('Pralka',2200,1,'other',8),T('Łazienka',2000,1,'socket',8),T('Płyta indukcyjna (1-faz.)',3600,1,'other',10),T('Piekarnik',3500,1,'other',10)]},
+ {id:'house',name:'Dom jednorodzinny 3-fazowy',note:'Dom parterowy z poddaszem, kuchnia z płytą 3-fazową, garaż i brama.',opts:{supply:'3F',system:'TN-C-S',groupSize:6,rcdMode:'groups'},circuits:HOUSE},
+ {id:'heatpump',name:'Dom z pompą ciepła',note:'Jak dom 3-fazowy oraz pompa ciepła (charakterystyka C) i grzałka zasobnika CWU. Sprawdź w instrukcji pompy wymagany typ RCD i zabezpieczenie.',opts:{supply:'3F',system:'TN-C-S',groupSize:6,rcdMode:'groups',rcdType:'A'},circuits:[...HOUSE,T('Pompa ciepła – sprężarka',6000,3,'motor',10),T('Pompa ciepła – jednostka wewnętrzna, sterowanie',300,1,'other',8),T('Grzałka zasobnika CWU',3000,1,'other',8)]},
+ {id:'pv',name:'Dom z fotowoltaiką',note:'Jak dom 3-fazowy oraz obwód falownika PV. Zabezpieczenie falownika dobierz do jego prądu wyjściowego, a wymaganie RCD i jego typ sprawdź w instrukcji falownika – kreator traktuje falownik jak zwykły obwód 3-fazowy.',opts:{supply:'3F',system:'TN-C-S',groupSize:6,rcdMode:'groups'},circuits:[...HOUSE,T('Falownik PV',10000,3,'other',15)]}
+];
 const NOTES=[
  'Oświetlenie: B10 i 1,5 mm²; gniazda: B16 i 2,5 mm² (typowe przyjęcie dla mieszkań).',
  'Inne obwody: najmniejszy znormalizowany prąd wyłącznika ≥ prądu z mocy (cos φ = 1, 230 V lub 3 × 400 V), charakterystyka B, przewód min. 2,5 mm².',
@@ -161,6 +170,6 @@ function generate(inp){
  return{state:parsed,load,notes:NOTES,groups:groups.length,rcbo:singles.length,warnings};
 }
 const SAMPLE=[['Oświetlenie parter',400,1,'light'],['Oświetlenie piętro',300,1,'light'],['Gniazda salon',2000,1,'socket'],['Gniazda kuchnia blat',2000,1,'socket'],['Zmywarka',2200,1,'other'],['Lodówka',300,1,'socket'],['Pralka',2200,1,'other'],['Gniazda pokoje',2000,1,'socket'],['Łazienka',2000,1,'socket'],['Płyta indukcyjna',7400,3,'other'],['Piekarnik',3500,1,'other'],['Pompa ciepła',6000,3,'other']].map(([name,power,phases,kind])=>({name,power,phases,kind}));
-const api={KINDS,NOTES,SAMPLE,RCD_TYPES,PROT_IN,validateInput,protection,generate};
+const api={KINDS,NOTES,SAMPLE,TEMPLATES,RCD_TYPES,PROT_IN,validateInput,protection,generate};
 if(typeof module!=='undefined')module.exports=api;root.DINWizard=api;
 })(typeof window!=='undefined'?window:globalThis);

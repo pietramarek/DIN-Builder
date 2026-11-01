@@ -37,6 +37,8 @@ Stan na 1.11.2026. Szczegóły techniczne i zasady jakości: `AGENTS.md`.
 - Spadek napięcia obwodu (1F, 2P jako dwie połówki, 3F przy 400 V) wobec zalecanych 3%/5% (zał. G, informacyjny).
 
 - WLZ jako widoczny przewód wchodzący do obudowy od dołu albo od góry (nie moduł na szynie); jego żyły są zaciskami, z których prowadzi się przewody. Liczba żył (5: L1 L2 L3 N PE, 4: L1 L2 L3 PEN, 3: L N PE, 2: L PEN) i materiał Cu/Al w parametrach sieci. Gdy WLZ jest na planszy, to on jest źródłem zasilania w topologii (PEN niesie N), a wyłącznik główny trzeba do niego podłączyć. Kontrole: liczba żył wobec liczby faz, żyła PEN w TN-S/TT (błąd), aluminiowy WLZ podłączony wprost do zacisku miedzianego (ostrzeżenie).
+- Dokumenty (przycisk w nagłówku): dokumentacja A4, opisy na drzwiczki w skali 1:1 (18 mm/moduł, paski dzielone między aparatami, nazwy obwodów), protokół pomiarów do wypełnienia w programie i do druku (Zs ≤ U0/Ia wg krzywej B/C/D, Riso ≥ 1 MΩ, RCD t ≤ 300 ms i IΔ 0,5–1,0 IΔn; ocena TAK/NIE; dane zapisane w projekcie), zestawienie materiałów z długościami przewodów z obwodów (+10% zapasu), WLZ i eksportem CSV dla Excela.
+- Gotowe szablony w kreatorze: mieszkanie 1F, dom 3F, dom z pompą ciepła, dom z fotowoltaiką (lista obwodów z typowymi mocami i długościami + opcje kreatora).
 - Pomoc (przycisk w nagłówku): szybki start, rozdział PEN ze schematem i zasadami, układy sieci, kolory żył, WLZ i Al/Cu, grupy RCD, zakres obliczeń.
 - Kontrola rozdziału PEN: rozdział za wyłącznikiem głównym to błąd (PEN nie może być przełączany, PN-HD 60364-4-46); PEN podłączony najpierw do zacisku N – ostrzeżenie (PEN → PE, potem mostek do N).
 - Przewody na planszy: większy obszar kliknięcia (dotyk – jeszcze większy), podświetlenie po najechaniu, opis żyły w podpowiedzi, zaznaczony przewód zawsze na wierzchu, kolejne kliknięcia w tym samym miejscu przełączają między nakładającymi się przewodami.
@@ -56,7 +58,7 @@ Stan na 1.11.2026. Szczegóły techniczne i zasady jakości: `AGENTS.md`.
 - Zapamiętane szablony list obwodów (zapisz / wczytaj / usuń) w localStorage, niezależne od listy projektów.
 
 ### Testy
-`node test-model.cjs && node test-topology.cjs && node test-calc.cjs && node test-schematic.cjs && node test-wizard.cjs` –
+`node test-model.cjs && node test-topology.cjs && node test-calc.cjs && node test-schematic.cjs && node test-wizard.cjs && node test-docs.cjs` –
 każda reguła ma przypadek poprawny, błędny i brak danych.
 
 ## Do zrobienia

@@ -101,6 +101,14 @@ ${PEN_SVG}
 <li>W tabeli obwodów wskaż „Listwę N” obwodu – wtedy program sprawdzi powrót N.</li>
 <li>Tryb RCBO w kreatorze daje każdemu obwodowi 1-fazowemu własny wyłącznik różnicowo-nadprądowy.</li>
 </ul>`},
+{id:'docs',title:'Dokumenty i pomiary',html:`
+<ul>
+<li><b>Dokumentacja projektu</b> – arkusz A4 do druku lub PDF.</li>
+<li><b>Opisy na drzwiczki</b> – paski w skali 1:1 (18 mm na moduł) z oznaczeniem aparatu i nazwami obwodów. Drukuj w skali 100%; przy aparatach 17,5 mm ustaw 97%.</li>
+<li><b>Protokół pomiarów</b> – wpisz zmierzone Zs, Riso, czas i prąd zadziałania RCD; program porówna je z warunkami: Zs ≤ U0/Ia (Ia = 5·In dla B, 10·In dla C, 20·In dla D), Riso ≥ 1 MΩ przy 500 V DC, RCD ogólnego typu t ≤ 300 ms przy IΔn i prąd zadziałania 0,5–1,0 IΔn. Wartości zapisują się w projekcie.</li>
+<li><b>Zestawienie materiałów CSV</b> – otwiera się w Excelu; długości przewodów pochodzą z tabeli obwodów (+10% zapasu), więc uzupełnij tam długości.</li>
+</ul>
+<p class="muted">Protokół w programie to formularz pomocniczy – pełne sprawdzenie odbiorcze obejmuje też oględziny, ciągłość przewodów ochronnych, kolejność faz i próby działania.</p>`},
 {id:'calc',title:'Co program liczy',html:`
 <ul>
 <li><b>Obciążalność</b>: In ≤ Iz dla przewodów Cu PVC w temperaturze 30 °C (PN-HD 60364-5-52, tabele B.52.2 i B.52.4) – bez współczynników grupowania i temperatury.</li>

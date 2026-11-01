@@ -19,13 +19,32 @@ function boardSnapshot(){
  return clone.outerHTML;
 }
 function materials(s){
- const groups=new Map();
- for(const c of s.components){const k=c.type+'|'+c.rating;if(!groups.has(k))groups.set(k,{type:c.type,rating:c.rating,labels:[]});groups.get(k).labels.push(c.label)}
- const rows=[...groups.values()].sort((a,b)=>Object.keys(TYPES).indexOf(a.type)-Object.keys(TYPES).indexOf(b.type)).map(g=>`<tr><td>${g.labels.length}</td><td>${esc(TYPES[g.type].name)} (${TYPES[g.type].width} mod.)</td><td>${esc(g.rating)}</td><td>${esc(g.labels.join(', '))}</td><td class="ex">${esc(exampleName(g.type))}</td></tr>`);
- for(const b of s.busbars||[])rows.push(`<tr><td>1</td><td>${esc(BUSBARS[b.type].name)}</td><td>${b.to-b.from+1} mod.</td><td>rząd ${b.row+1}, moduły ${b.from+1}–${b.to+1}, ${b.side==='t'?'góra':'dół'}</td><td></td></tr>`);
- const wires=new Map();for(const w of s.wires){const k=w.role+' '+w.gauge;wires.set(k,(wires.get(k)||0)+1)}
- for(const[k,n]of wires){const[role,g]=k.split(' ');rows.push(`<tr><td>${n}</td><td>Przewód ${esc(role)}</td><td>${String(g).replace('.',',')} mm²</td><td>odcinki w rozdzielnicy</td><td>długość do ustalenia</td></tr>`)}
- return rows.join('')||'<tr><td colspan="5">Brak elementów.</td></tr>';
+ const rows=root.DINDocs.materialRows(s);
+ return rows.map(r=>`<tr><td>${esc(r.qty===''?'—':String(r.qty).replace('.',','))} ${esc(r.unit)}</td><td>${esc(r.name)}</td><td>${esc(r.params)}</td><td>${esc(r.where)}</td><td class="ex">${esc(r.example)}</td></tr>`).join('')||'<tr><td colspan="5">Brak elementów.</td></tr>';
+}
+// Door label strips at 1:1 scale (18 mm per module), split to fit the A4 landscape width.
+const MODULE_MM=18;
+function labels(s){
+ const segs=root.DINDocs.labelSegments(s,15);
+ const strips=segs.map(g=>`<div class="lblhead">Rząd ${g.row+1} · moduły ${g.from+1}–${g.to}</div><div class="lblrow" style="width:${(g.to-g.from)*MODULE_MM}mm">${g.cells.map(c=>`<div class="lblcell" style="left:${c.offset*MODULE_MM}mm;width:${c.width*MODULE_MM}mm"><b>${esc(c.title)}</b><span>${esc(c.text)}</span></div>`).join('')}</div>`).join('');
+ return `<div class="ph"><div><h1>Opisy na drzwiczki – ${esc(s.name)}</h1><p>Skala 1:1, ${MODULE_MM} mm na moduł. Drukuj w skali 100% (bez dopasowania do strony). Dla aparatów 17,5 mm wydrukuj w skali 97%.</p></div><div class="brand">DIN Builder</div></div>${strips||'<p>Brak aparatów na szynach.</p>'}`;
+}
+// Measurement protocol sheet: header, circuits (loop impedance, insulation), RCD tests, signatures.
+function protocol(s){
+ const P=root.DINDocs.protocolRows(s),p=s.protocol||{},n=v=>v==null?'':String(Math.round(v*100)/100).replace('.',','),mk=v=>v===true?'<b class="okm">TAK</b>':v===false?'<b class="failm">NIE</b>':'';
+ const head=[['Obiekt',p.object],['Adres',p.address],['Wykonał',p.by],['Przyrząd (typ, nr)',p.instrument],['Data pomiarów',p.date],['Układ sieci',s.network?.system]].map(([k,v])=>`<div><span>${k}</span><b>${esc(v||'')}</b></div>`).join('');
+ const cr=P.circuits.map(r=>`<tr><td>${r.nr}</td><td>${esc(r.name)}</td><td>${esc(r.device)} ${esc(r.rating)}</td><td class="num">${n(r.Ia)}</td><td class="num">${n(r.zsMax)}</td><td class="num">${n(r.zs)}</td><td>${mk(r.zsOk)}</td><td class="num">${n(r.riso)}</td><td>${mk(r.risoOk)}</td></tr>`).join('')||'<tr><td colspan="9">Brak obwodów.</td></tr>';
+ const rr=P.rcds.map(r=>`<tr><td>${esc(r.label)}</td><td>${esc(r.rating)}</td><td class="num">${n(r.idn)}</td><td class="num">${n(r.t)}</td><td>${mk(r.tOk)}</td><td class="num">${n(r.i)}</td><td>${mk(r.iOk)}</td></tr>`).join('')||'<tr><td colspan="7">Brak wyłączników różnicowoprądowych.</td></tr>';
+ const sm=P.summary;
+ return `<div class="ph"><div><h1>Protokół z pomiarów – ${esc(s.name)}</h1><p>Wynik: zmierzono ${sm.measured} z ${sm.total} wartości, niespełnionych warunków: ${sm.failed}.</p></div><div class="brand">DIN Builder</div></div>
+<div class="prothead">${head}</div>
+<section class="psec"><h2>Impedancja pętli zwarcia i rezystancja izolacji</h2><table><thead><tr><th>Nr</th><th>Obwód</th><th>Zabezpieczenie</th><th>Ia [A]</th><th>Zs dop. [Ω]</th><th>Zs zm. [Ω]</th><th>Zs ok</th><th>Riso [MΩ]</th><th>Riso ok</th></tr></thead><tbody>${cr}</tbody></table>
+<p class="bal">Zs dop. = U0 / Ia, U0 = 230 V, Ia = 5·In (B), 10·In (C), 20·In (D) – PN-HD 60364-4-41, 411.4.4; wartość bez współczynników korekcyjnych. Riso ≥ 1 MΩ przy napięciu probierczym 500 V DC – PN-HD 60364-6, tab. 6.1.${s.network?.system==='TT'?' Układ TT: oceń też warunek RA × IΔn ≤ 50 V dla uziomu.':''}</p></section>
+<section class="psec"><h2>Wyłączniki różnicowoprądowe</h2><table><thead><tr><th>Aparat</th><th>Parametry</th><th>IΔn [mA]</th><th>t przy IΔn [ms]</th><th>t ok</th><th>IΔ zadziałania [mA]</th><th>IΔ ok</th></tr></thead><tbody>${rr}</tbody></table>
+<p class="bal">Wyłącznik ogólnego typu: t ≤ 300 ms przy IΔn, prąd zadziałania 0,5–1,0 IΔn (PN-EN 61008-1 / 61009-1). Wyłączniki selektywne (S) mają inne granice czasu.</p></section>
+${p.notes?`<section class="psec"><h2>Uwagi</h2><p>${esc(p.notes)}</p></section>`:''}
+<div class="signs"><div>Data i podpis wykonującego pomiary</div><div>Nr uprawnień</div></div>
+<div class="pfoot">Formularz pomocniczy z prototypu DIN Builder. Ocena dotyczy tylko wpisanych wartości i podanych warunków; nie zastępuje pełnego protokołu odbiorczego (oględziny, ciągłość przewodów, kolejność faz, próby funkcjonalne).</div>`;
 }
 function render(s){
  const t=analyze(s),byId=new Map(s.components.map(c=>[c.id,c])),info=new Map(t.circuits.map(c=>[c.id,c])),calc=calcFor(s),cx=r=>!r?'—':[r.Iz!=null?`Iz ${r.Iz} A${r.In!=null?(r.In<=r.Iz?' ≥ ':' < ')+'In '+r.In+' A':''}`:'Iz ?',r.dU!=null?`ΔU ${(r.dUtotal??r.dU).toFixed(2).replace('.',',')}%${r.dUw!=null?' (z WLZ)':''}`:'ΔU ?'].join(' · ');
@@ -45,7 +64,8 @@ function render(s){
 <section class="psec"><h2>Wynik kontroli</h2><p>${errs.length?`Wykryto problemy: ${errs.length}.`:'Nie wykryto konfliktów w sprawdzanym zakresie.'} Sprawdzono połączenia, fazy, zwarcia w modelu, grupy RCD, In ≤ Iz (Cu, PVC, 30 °C, bez współczynników – PN-HD 60364-5-52 tab. B.52.2) i spadek napięcia obwodów (zał. G, informacyjny). Nie sprawdzono selektywności, prądów zwarciowych ani impedancji pętli.</p>${issues.length?'<ul>'+issues.map(i=>`<li class="${i.severity}"><b>${esc(i.title)}</b> – ${esc(i.text)}</li>`).join('')+'</ul>':''}</section>
 <div class="pfoot">Dokument roboczy z prototypu DIN Builder. Nie potwierdza bezpieczeństwa instalacji, doboru zabezpieczeń ani zgodności z normami. Wygląd i przykładowe nazwy aparatów są poglądowe. Projekt i pomiary wymagają weryfikacji przez osobę z uprawnieniami.</div>`;
 }
-function open(s){const v=document.getElementById('printView');v.innerHTML=render(s);root.print()}
+function show(html){const v=document.getElementById('printView');v.innerHTML=html;root.print()}
+function open(s){show(render(s))}
 root.addEventListener('afterprint',()=>{const v=document.getElementById('printView');if(v)v.innerHTML=''});
-root.DINPrint={render,open};
+root.DINPrint={render,open,labels,protocol,openLabels:s=>show(labels(s)),openProtocol:s=>show(protocol(s))};
 })(window);
