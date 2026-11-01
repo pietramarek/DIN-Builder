@@ -127,6 +127,6 @@ function analyze(s){
  if(assigned.filter(v=>v>0).length>1&&max>=3000&&max>2*Math.max(min,1))issues.push({severity:'info',title:'Nierównomierne obciążenie faz',text:`L1 ${Math.round(res.balance.L1)} W · L2 ${Math.round(res.balance.L2)} W · L3 ${Math.round(res.balance.L3)} W (moc zainstalowana z listy obwodów). Najbardziej obciążona faza ma ponad 2× więcej niż najmniej obciążona. To wskazówka projektowa, nie wymóg normy.`});
  return res;
 }
-const api={edges,busbarLinks,underBusbar,analyze};
+const api={edges,components,busbarLinks,underBusbar,analyze};
 if(typeof module!=='undefined')module.exports=api;root.DINTopology=api;
 })(typeof window!=='undefined'?window:globalThis);

@@ -37,6 +37,7 @@ function render(s){
  const b=t.balance;
  return `<div class="ph"><div><h1>${esc(s.name)}</h1><p>Rozdzielnica ${d.rows} × ${d.modules} mod. · ${s.components.length} aparatów · ${s.wires.length} przewodów · ${new Date().toLocaleDateString('pl-PL')}</p><p>${esc(netTxt)}</p></div><div class="brand">DIN Builder</div></div>
 <section class="psec">${boardSnapshot()}</section>
+<section class="psec sldsec"><h2>Schemat jednokreskowy</h2>${root.DINSchematic.svg(s)}</section>
 <section class="psec"><h2>Obwody</h2><table><thead><tr><th>Nr</th><th>Nazwa</th><th>Aparat</th><th>Faza</th><th>RCD</th><th>Listwa N</th><th>Przewód</th><th>Moc [W]</th><th>Obliczenia</th></tr></thead><tbody>${circuits}</tbody></table>
 <p class="bal">${t.supplied?`Bilans faz (moc zainstalowana, bez współczynnika jednoczesności): L1 ${kw(b.L1)} · L2 ${kw(b.L2)} · L3 ${kw(b.L3)}${b.unknown?` · bez ustalonej fazy ${kw(b.unknown)}`:''}`:'Bilans faz: brak wyłącznika głównego jako punktu zasilania.'}</p></section>
 <section class="psec"><h2>Zestawienie materiałów</h2><table><thead><tr><th>Ilość</th><th>Element</th><th>Parametry</th><th>Oznaczenia / położenie</th><th>Przykład handlowy</th></tr></thead><tbody>${materials(s)}</tbody></table></section>

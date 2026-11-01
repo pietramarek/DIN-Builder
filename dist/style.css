@@ -18,3 +18,4 @@
 @media (pointer:coarse){.catalog-item{touch-action:manipulation}}@media (max-width:700px){.buildinfo{position:static;display:inline-block;margin:8px 12px 16px}}
 
 .calccell{font-size:10px;line-height:1.35;white-space:nowrap}.calc.ok{color:#2b7a4b}.calc.warn{color:#9a6a10;font-weight:600}.calc.bad{color:#b0453a;font-weight:700}#circuitRows input[data-field="length"]{width:64px}#circuitRows select[data-field="method"]{width:58px}
+#schematicDialog{border:0;border-radius:12px;padding:20px 24px;width:min(1200px,calc(100vw - 32px));max-height:calc(100vh - 40px);box-shadow:0 20px 60px #132a3640;color:#2d4853}#schematicDialog::backdrop{background:#132a3666}.dlghead{display:flex;justify-content:space-between;align-items:center}.dlghead h2{margin:0}.schematicbody{overflow:auto;max-height:70vh;border:1px solid var(--line);border-radius:8px;background:#fff;padding:8px}@media print{#printView .sldsec svg{max-width:100%;height:auto;break-inside:avoid}}
