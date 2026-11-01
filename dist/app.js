@@ -171,9 +171,9 @@ function renderPartList(){
 $('partlist').addEventListener('click',e=>{const b=e.target.closest('.partitem');if(!b)return;multi.clear();selected={kind:b.dataset.kind,id:b.dataset.id};render();
  const el=b.dataset.kind==='device'&&document.querySelector(`#components .device[data-id="${CSS.escape(b.dataset.id)}"]`);if(el)el.scrollIntoView({block:'nearest',inline:'nearest',behavior:'smooth'});
  if(innerWidth<=1150)$('inspector').scrollIntoView({block:'start',behavior:'smooth'})});
-// Visual family of a device for the look themes (generic, Easy9-like, Hager-like, ETI-like); drawing only, no brand marks.
+// Visual family of a device for the look themes (generic, Easy9-like, Hager-like); drawing only, no brand marks.
 function lookOf(t){return /^MCB|^MAIN/.test(t)?'mcb':/^RCD/.test(t)?'rcd':t==='RCBO'?'rcbo':TYPES[t].switching?'sw':TYPES[t].spd?'spd':TYPES[t].meter?'meter':''}
-const LOOKS=['generic','easy9','hager','eti'];let look=(()=>{try{const v=localStorage.getItem('din-look');return LOOKS.includes(v)?v:'generic'}catch(e){return'generic'}})();
+const LOOKS=['generic','easy9','hager'];let look=(()=>{try{const v=localStorage.getItem('din-look');return LOOKS.includes(v)?v:'generic'}catch(e){return'generic'}})();
 function applyLook(){document.body.dataset.look=look;$('lookSel').value=look}
 $('lookSel').onchange=e=>{look=LOOKS.includes(e.target.value)?e.target.value:'generic';try{localStorage.setItem('din-look',look)}catch(err){}applyLook()};applyLook();
 function renderBoard(){
