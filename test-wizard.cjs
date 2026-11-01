@@ -8,12 +8,15 @@ const base={name:'Dom',supply:'3F',system:'TN-C-S',mainFuse:'3 × 25 A gG',group
 const errs=s=>[...validate(s),...analyze(s).issues,...analyzeCircuits(s).issues].filter(i=>i.severity==='error');
 
 // Protection choice
-assert.deepEqual(protection({kind:'light',phases:1,power:400},'C'),{In:10,S:1.5});
-assert.deepEqual(protection({kind:'socket',phases:1,power:2000},'A1'),{In:16,S:2.5},'sockets on 2.5 mm² even when A1');
-assert.deepEqual(protection({kind:'other',phases:1,power:3500},'C'),{In:16,S:2.5},'15.2 A -> B16, min. 2.5 mm² for appliances');
-assert.deepEqual(protection({kind:'other',phases:1,power:6000},'A1'),{In:32,S:6},'26 A -> B32; A1 needs 6 mm² (34 A)');
-assert.deepEqual(protection({kind:'other',phases:3,power:7400},'C'),{In:13,S:2.5},'10.7 A three-phase');
+assert.deepEqual(protection({kind:'light',phases:1,power:400},'C'),{In:10,S:1.5,curve:'B'});
+assert.deepEqual(protection({kind:'socket',phases:1,power:2000},'A1'),{In:16,S:2.5,curve:'B'},'sockets on 2.5 mm² even when A1');
+assert.deepEqual(protection({kind:'other',phases:1,power:3500},'C'),{In:16,S:2.5,curve:'B'},'15.2 A -> B16, min. 2.5 mm² for appliances');
+assert.deepEqual(protection({kind:'other',phases:1,power:6000},'A1'),{In:32,S:6,curve:'B'},'26 A -> B32; A1 needs 6 mm² (34 A)');
+assert.deepEqual(protection({kind:'other',phases:3,power:7400},'C'),{In:13,S:2.5,curve:'B'},'10.7 A three-phase');
 assert.ok(protection({kind:'other',phases:1,power:20000},'C').error,'over 40 A is refused');
+// Motor/compressor circuits get curve C with the same current/section selection as other appliances
+assert.deepEqual(protection({kind:'motor',phases:1,power:3500},'C'),{In:16,S:2.5,curve:'C'},'motor circuits use curve C');
+assert.deepEqual(protection({kind:'motor',phases:3,power:7400},'C'),{In:13,S:2.5,curve:'C'});
 
 // Full 3-phase house: valid, every circuit protected, balanced, no errors anywhere
 let r=generate(base);
@@ -46,4 +49,31 @@ assert.ok(validateInput({...base,circuits:[]}).length);
 assert.ok(generate({...base,supply:'1F'}).errors.some(e=>e.includes('3-fazowy')));
 assert.ok(generate({...base,groupSize:1,circuits:[...SAMPLE,...SAMPLE]}).errors[0].includes('Za dużo grup'));
 assert.ok(generate({...base,circuits:[{name:'X',power:-5,phases:1,kind:'light'}]}).errors.length);
-console.log('Wizard checks passed: protection choice, 3F and 1F boards valid, RCD on every circuit, phase balance, PEN split, schematic, input limits.');
+
+// RCD type reaches the device's rating text; motor circuits get curve C on their breaker
+r=generate({...base,rcdType:'A'});
+assert.ok(r.state.components.filter(c=>c.type==='RCD').every(c=>c.rating.includes('typ A')));
+assert.ok(validateInput({...base,rcdType:'X'}).some(e=>e.includes('RCD')),'unknown RCD type rejected');
+r=generate({...base,circuits:[{name:'Pompa',power:1500,phases:1,kind:'motor'},{name:'Oświetlenie',power:400,phases:1,kind:'light'}],groupSize:6});
+assert.ok(r.state,(r.errors||[]).join(' '));
+const motorDev=r.state.components.find(c=>c.label==='F1');
+assert.ok(motorDev.rating.startsWith('C'),'motor circuit uses curve C: '+motorDev.rating);
+
+// Main switch and RCD ratings are picked from the standard list, not fixed at 40 A
+r=generate({...base,supply:'1F',system:'TN-S',circuits:[{name:'Oświetlenie',power:400,phases:1,kind:'light'}],groupSize:4});
+const mainDev=r.state.components.find(c=>c.type==='MAIN2');
+assert.equal(mainDev.rating,'25 A','small load picks the smallest standard rating, not a fixed 40 A');
+
+// Three single-phase circuits near 40 A each, forced onto the same phase (1F supply has none other): the group
+// and the main switch both exceed the largest standard rating (100 A) and generation is refused, not silently capped.
+const heavy=[0,1,2].map(i=>({name:'Piec '+i,power:9000,phases:1,kind:'other'}));
+let hv=generate({...base,supply:'1F',system:'TN-S',circuits:heavy,groupSize:3,mainFuse:''});
+assert.ok(hv.errors&&hv.errors.some(e=>e.includes('RCD')&&e.includes('100 A')),'overloaded RCD group is refused: '+(hv.errors||[]).join(' '));
+
+// A load within standard ratings but above the stated incoming fuse is still generated, with a non-blocking warning
+r=generate({...base,supply:'1F',system:'TN-S',circuits:SAMPLE.filter(c=>c.phases===1),groupSize:4,mainFuse:'1 × 16 A gG'});
+assert.ok(r.state,(r.errors||[]).join(' '));
+assert.ok(r.warnings.some(w=>w.includes('16 A')),'load above the stated incoming fuse is warned, not silently accepted: '+JSON.stringify(r.warnings));
+r=generate({...base,mainFuse:''});
+assert.deepEqual(r.warnings,[],'no incoming fuse stated -> no fabricated warning');
+console.log('Wizard checks passed: protection choice, 3F and 1F boards valid, RCD on every circuit, phase balance, PEN split, schematic, input limits, RCD type, motor curve, main/RCD sizing.');
