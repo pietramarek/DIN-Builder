@@ -79,7 +79,7 @@ function protocolRows(s){
 // The 20 % spare space is a practical recommendation (later extensions, heat), not a normative value.
 const SPARE=0.2,SIZES=[];for(let r=1;r<=8;r++)for(const m of [12,18,24])SIZES.push({rows:r,modules:m});SIZES.sort((a,b)=>a.rows*a.modules-b.rows*b.modules||a.rows-b.rows);
 function enclosureAdvice(s){
- const d=dims(s),rail=s.components.filter(c=>c.row>=0),used=rail.reduce((n,c)=>n+TYPES[c.type].width,0),capacity=d.rows*d.modules,widest=Math.max(0,...rail.map(c=>TYPES[c.type].width)),need=Math.ceil(used*(1+SPARE));
+ const d=dims(s),rail=s.components.filter(c=>c.row>=0&&!TYPES[c.type].blank),used=rail.reduce((n,c)=>n+TYPES[c.type].width,0),capacity=d.rows*d.modules,widest=Math.max(0,...rail.map(c=>TYPES[c.type].width)),need=Math.ceil(used*(1+SPARE));
  const suggest=used?SIZES.find(z=>z.rows*z.modules>=need&&z.modules>=widest)||null:null,freePct=capacity?Math.round(100*(capacity-used)/capacity):0,issues=[];
  if(used&&capacity-used<used*SPARE)issues.push({severity:'info',title:'Mała rezerwa miejsca w obudowie',text:`Wolne ${capacity-used} z ${capacity} modułów (${freePct}%). Zaleca się około ${Math.round(SPARE*100)}% rezerwy na rozbudowę i odprowadzanie ciepła${suggest?` – np. obudowa ${suggest.rows} × ${suggest.modules} mod.`:''}. To zalecenie praktyczne, nie wymóg normy.`});
  return{used,capacity,freePct,need,suggest,issues};

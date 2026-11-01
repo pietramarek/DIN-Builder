@@ -49,6 +49,9 @@ assert.throws(()=>parse({...board(),protocol:{object:'x'.repeat(121)}}),/protok�
 let ea=D.enclosureAdvice(board());assert.equal(ea.used,4+4+1+1+3+3);assert.equal(ea.capacity,36);assert.deepEqual(ea.issues,[]);assert.deepEqual(ea.suggest,{rows:1,modules:24},'16 mod. + 20% = 20 -> 1 × 24');
 const full=board();full.rows=1;full.modules=18;full.components=full.components.filter(c=>c.row<=0);full.components.push(dev('F9','MCB3',0,10));ea=D.enclosureAdvice(full);assert.equal(ea.used,16);assert.ok(ea.issues.some(i=>i.title==='Mała rezerwa miejsca w obudowie'));assert.deepEqual(ea.suggest,{rows:1,modules:24});
 
+// Blanks are spare space, not used space
+{const b=board();b.components.push(dev('Z1','ZASL',1,10),dev('Z2','ZASL',1,11));assert.equal(D.enclosureAdvice(b).used,16,'blanks not counted');assert.ok(D.materialRows(b).some(r=>r.name.startsWith('Zaślepka')&&r.qty===2),'blanks listed for ordering')}
+
 // Built-in templates produce boards without topology errors
 for(const t of W.TEMPLATES){const r=W.generate({name:t.name,circuits:t.circuits,modules:18,method:'C',spd:true,...t.opts});assert.ok(!r.errors,t.id+': '+(r.errors||[]).join());assert.deepEqual(analyze(r.state).issues.filter(i=>i.severity==='error'),[],t.id)}
 console.log('Document checks passed: materials with cable lengths, CSV, door labels, measurement protocol, templates.');
