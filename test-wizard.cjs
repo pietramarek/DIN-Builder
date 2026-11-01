@@ -44,10 +44,22 @@ assert.ok(analyze(r.state).circuits.every(c=>c.phase==='L1'));
 assert.ok(r.state.components.some(c=>c.type==='RCD2')&&r.state.components.some(c=>c.type==='MAIN2'));
 assert.ok(!r.state.wires.some(w=>w.role==='PEN'),'no PEN split in TN-S');
 
+// RCBO mode: every 1-phase circuit on its own RCBO, 3-phase circuits keep an RCD group
+for(const sup of ['3F','1F']){
+ const rr=generate({...base,supply:sup,rcdMode:'rcbo',circuits:sup==='3F'?SAMPLE:SAMPLE.filter(c=>c.phases===1)});
+ assert.ok(rr.state,(rr.errors||[]).join(' '));
+ assert.deepEqual(errs(rr.state),[],sup+' RCBO board has no errors: '+errs(rr.state).map(i=>i.title).join(' | '));
+ const tt=analyze(rr.state);
+ assert.ok(tt.circuits.every(c=>c.status==='ok'&&c.rcd.length),sup+': every circuit powered and residual-current protected');
+ assert.equal(rr.state.components.filter(c=>c.type==='RCBO').length,SAMPLE.filter(c=>c.phases===1).length);
+ if(sup==='3F'){assert.equal(rr.state.components.filter(c=>c.type==='RCD').length,1,'3-phase circuits in one RCD group');const bb=tt.balance;assert.ok(Math.max(bb.L1,bb.L2,bb.L3)-Math.min(bb.L1,bb.L2,bb.L3)<=2200,'RCBO phases balanced')}
+}
+assert.ok(validateInput({...base,rcdMode:'x'}).some(e=>e.includes('ochrony')));
+
 // Input validation and limits
 assert.ok(validateInput({...base,circuits:[]}).length);
 assert.ok(generate({...base,supply:'1F'}).errors.some(e=>e.includes('3-fazowy')));
-assert.ok(generate({...base,groupSize:1,circuits:[...SAMPLE,...SAMPLE]}).errors[0].includes('Za dużo grup'));
+assert.ok(generate({...base,groupSize:1,circuits:[...SAMPLE,...SAMPLE]}).errors[0].includes('Za dużo rzędów'));
 assert.ok(generate({...base,circuits:[{name:'X',power:-5,phases:1,kind:'light'}]}).errors.length);
 
 // RCD type reaches the device's rating text; motor circuits get curve C on their breaker

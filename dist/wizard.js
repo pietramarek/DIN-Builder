@@ -16,6 +16,7 @@ const NOTES=[
  'Przekrój: najmniejszy, dla którego In ≤ Iz przy wybranym ułożeniu (Cu, PVC, 30 °C, bez współczynników grupowania).',
  'Każdy obwód za wyłącznikiem różnicowoprądowym 30 mA; grupy RCD po maksymalnie wskazanej liczbie obwodów. Typ RCD (AC/A/F/B) z wyboru w kreatorze trafia do opisu parametrów – kreator nie sprawdza, czy to właściwy typ dla danego odbioru.',
  'Fazy obwodów 1-fazowych dobrane tak, by wyrównać moc zainstalowaną; o fazie decyduje pin szyny grzebieniowej 3P.',
+ 'Tryb „RCBO”: każdy obwód 1-fazowy ma własny wyłącznik różnicowo-nadprądowy 1P+N (2 mod.) zasilany z szyny grzebieniowej; obwody 3-fazowe pozostają w grupie z RCD 4P. N każdego RCBO jest podłączony przewodem z listwy N w rzędzie. W modelu szyna ma pin co moduł – rzeczywista szyna dla aparatów 1P+N ma podziałkę dopasowaną do aparatu.',
  `Prąd znamionowy wyłącznika głównego i każdego RCD dobierany z listy ${PROT_IN.join('/')} A wg sumy prądów obwodów na najbardziej obciążonej fazie w danej grupie (bez współczynnika jednoczesności – to zawyża dobór, nie zaniża). Sprawdź go mimo to wobec zabezpieczenia przedlicznikowego i rzeczywistego obciążenia.`,
 ];
 const uidGen=()=>{let n=0;return p=>p+'-'+(++n)};
@@ -36,6 +37,7 @@ function validateInput(inp){
  const g=inp?.groupSize;if(!Number.isInteger(g)||g<1||g>12)errs.push('Liczba obwodów na RCD: 1–12.');
  if(inp&&!Object.hasOwn(C.METHODS,inp.method))errs.push('Wybierz sposób ułożenia przewodów.');
  if(inp&&inp.rcdType!==undefined&&!RCD_TYPES.includes(inp.rcdType))errs.push('Nieznany typ RCD.');
+ if(inp&&inp.rcdMode!==undefined&&!['groups','rcbo'].includes(inp.rcdMode))errs.push('Nieznany sposób ochrony różnicowoprądowej.');
  return errs;
 }
 function protection(c,method){
@@ -90,10 +92,16 @@ function generate(inp){
  const id=uidGen(),three=inp.supply==='3F',method=inp.method;
  const circuits=inp.circuits.map((c,i)=>({...c,name:c.name.trim(),idx:i}));
  for(const c of circuits){const p=protection(c,method);if(p.error)return{errors:[p.error]};Object.assign(c,p)}
- // Groups: keep the circuit order, but never more than groupSize per RCD.
- const groups=[];for(let i=0;i<circuits.length;i+=inp.groupSize)groups.push(circuits.slice(i,i+inp.groupSize));
+ // Groups: keep the circuit order, but never more than groupSize per RCD. In RCBO mode only 3-phase circuits use RCD groups.
+ const rcbo=inp.rcdMode==='rcbo',grouped=rcbo?circuits.filter(c=>c.phases===3):circuits,singles=rcbo?circuits.filter(c=>c.phases===1):[];
+ const groups=[];for(let i=0;i<grouped.length;i+=inp.groupSize)groups.push(grouped.slice(i,i+inp.groupSize));
  const load=assignPhases(groups,inp.supply);
- if(groups.length+1>M.LIMITS.rows[1])return{errors:[`Za dużo grup RCD (${groups.length}) na ${M.LIMITS.rows[1]} szyn – zwiększ liczbę obwodów na RCD.`]};
+ // RCBO rows: position p sits at module offset 2·(p mod R), i.e. on comb pin (2·(p mod R)) mod 3 – cycle L1, L3, L2.
+ // Largest loads first take a free position on the currently least loaded phase.
+ const perRow=Math.max(1,Math.min(inp.groupSize,7)),rcboRows=Math.ceil(singles.length/perRow);
+ {const free=[[],[],[]];for(let p=0;p<singles.length;p++){const off=2*(p%perRow);free[three?off%3:0].push({row:Math.floor(p/perRow),off})}
+  for(const c of [...singles].sort((a,b)=>b.power-a.power)){const k=three?[0,1,2].filter(k=>free[k].length).reduce((a,b)=>load[b]<load[a]?b:a):0;const pos=free[k].shift();c.pin=k;c.rrow=pos.row;c.roff=pos.off;load[k]+=c.power}}
+ if(groups.length+rcboRows+1>M.LIMITS.rows[1])return{errors:[`Za dużo rzędów (${groups.length+rcboRows+1}) na ${M.LIMITS.rows[1]} szyn – zwiększ liczbę obwodów na RCD lub na rząd.`]};
  // Size the main switch and every RCD from the worst-case per-phase current of what they carry (no diversity factor).
  const groupAmps=groups.map(g=>{const L=phaseCurrents(g);return three?Math.max(...L):L[0]});
  const rcdRatings=groupAmps.map(pickRating);
@@ -110,7 +118,7 @@ function generate(inp){
  const rcdType=three?'RCD':'RCD2',rcdW=TYPES[rcdType].width,poles=three?['L1','L2','L3']:['L'];
  const seqs=groups.map(g=>sequence(g,three));
  const stripFor=n=>n<=6?'NB7':n<=10?'NB11':'NB15';
- const need=Math.max(...seqs.map((sq,i)=>rcdW+sq.len+1+TYPES[stripFor(groups[i].length+1)].width),(three?4:2)+(inp.spd&&three?5:0)+TYPES.PEB15.width+1);
+ const need=Math.max(0,...seqs.map((sq,i)=>rcdW+sq.len+1+TYPES[stripFor(groups[i].length+1)].width),(three?4:2)+(inp.spd&&three?5:0)+TYPES.PEB15.width+1,rcboRows?2*perRow+1+TYPES[stripFor(perRow+1)].width:0);
  const modules=Math.min(M.LIMITS.modules[1],Math.max(inp.modules||18,need));
  if(need>modules)return{errors:['Grupa nie mieści się na szynie 36 modułów – zmniejsz liczbę obwodów na RCD.']};
  // Row 1: main switch, surge protection, PE bar (and the PEN split in TN-C-S)
@@ -134,12 +142,21 @@ function generate(inp){
   w(rcd,three?'b3':'b1',strip,'t0','N');
   for(const c of g)c.nBar=strip.id;
  });
+ for(let r=0;r<rcboRows;r++){
+  const row=groups.length+1+r,items=singles.filter(c=>c.rrow===r).sort((a,b)=>a.roff-b.roff),firstAt=[null,null,null];
+  for(const c of items){const dev=add('RCBO','F'+(outCircuits.length+1),row,c.roff,`${c.curve}${c.In} / 30 mA${inp.rcdType?' / typ '+inp.rcdType:''}`);c.dev=dev;outCircuits.push(c);const pin=three?c.roff%3:0;if(!firstAt[pin])firstAt[pin]=dev}
+  const last=Math.max(...items.map(c=>c.roff))+2; // RCBO is 2 modules wide
+  busbars.push({id:id('b'),type:three?'3P':'1P',side:'t',row,from:0,to:last-1});
+  firstAt.forEach((dev,k)=>{if(dev)w(main,'b'+k,dev,'t0',three?poles[k]:'L')});
+  const st=stripFor(items.length+1),strip=add(st,'N'+(groups.length+r+1),row,last+1),sp=M.ports(strip);
+  w(main,three?'b3':'b1',strip,sp[0].key,'N');items.forEach((c,i)=>w(strip,sp[i+1].key,c.dev,'t1','N',2.5));
+ }
  const cable=c=>`${c.phases===3?5:3} × ${String(c.S).replace('.',',')}`;
- const state={version:1,name:(inp.name||'Rozdzielnia z kreatora').slice(0,120),rows:groups.length+1,modules,
+ const state={version:1,name:(inp.name||'Rozdzielnia z kreatora').slice(0,120),rows:groups.length+rcboRows+1,modules,
   network:{system:inp.system||'',supply:inp.supply,mainFuse:inp.mainFuse||''},components:comps,wires,busbars,
-  circuits:circuits.sort((a,b)=>a.idx-b.idx).map(c=>({id:id('c'),name:c.name,device:c.dev.id,power:c.power,cable:cable(c),nBar:c.nBar,method,kind:c.kind==='light'?'light':'other',...(c.length!==undefined?{length:c.length}:{})}))};
+  circuits:circuits.sort((a,b)=>a.idx-b.idx).map(c=>({id:id('c'),name:c.name,device:c.dev.id,power:c.power,cable:cable(c),...(c.nBar?{nBar:c.nBar}:{}),method,kind:c.kind==='light'?'light':'other',...(c.length!==undefined?{length:c.length}:{})}))};
  const parsed=parse(state);
- return{state:parsed,load,notes:NOTES,groups:groups.length,warnings};
+ return{state:parsed,load,notes:NOTES,groups:groups.length,rcbo:singles.length,warnings};
 }
 const SAMPLE=[['Oświetlenie parter',400,1,'light'],['Oświetlenie piętro',300,1,'light'],['Gniazda salon',2000,1,'socket'],['Gniazda kuchnia blat',2000,1,'socket'],['Zmywarka',2200,1,'other'],['Lodówka',300,1,'socket'],['Pralka',2200,1,'other'],['Gniazda pokoje',2000,1,'socket'],['Łazienka',2000,1,'socket'],['Płyta indukcyjna',7400,3,'other'],['Piekarnik',3500,1,'other'],['Pompa ciepła',6000,3,'other']].map(([name,power,phases,kind])=>({name,power,phases,kind}));
 const api={KINDS,NOTES,SAMPLE,RCD_TYPES,PROT_IN,validateInput,protection,generate};
