@@ -36,7 +36,9 @@ Stan na 1.11.2026. Szczegóły techniczne i zasady jakości: `AGENTS.md`.
 - In ≤ Iz dla Cu/PVC przy 30 °C (PN-HD 60364-5-52 tab. B.52.2 i B.52.4, ułożenia A1/A2/B1/B2/C, 1,5–16 mm², bez współczynników korekcyjnych).
 - Spadek napięcia obwodu (1F, 2P jako dwie połówki, 3F przy 400 V) wobec zalecanych 3%/5% (zał. G, informacyjny).
 
-- WLZ (parametry sieci: przewód, długość, ułożenie): sprawdzenie obciążalności wobec zabezpieczenia przedlicznikowego (gG: 1,6·In ≤ 1,45·Iz, inaczej In ≤ Iz; tylko Cu 1,5–16 mm² z tabel w programie), spadek napięcia WLZ z mocy zainstalowanej (bez współczynnika jednoczesności) doliczany do każdego obwodu wobec limitu 3 %/5 % od złącza; WLZ na schemacie i wydruku.
+- WLZ jako widoczny przewód wchodzący do obudowy od dołu albo od góry (nie moduł na szynie); jego żyły są zaciskami, z których prowadzi się przewody. Liczba żył (5: L1 L2 L3 N PE, 4: L1 L2 L3 PEN, 3: L N PE, 2: L PEN) i materiał Cu/Al w parametrach sieci. Gdy WLZ jest na planszy, to on jest źródłem zasilania w topologii (PEN niesie N), a wyłącznik główny trzeba do niego podłączyć. Kontrole: liczba żył wobec liczby faz, żyła PEN w TN-S/TT (błąd), aluminiowy WLZ podłączony wprost do zacisku miedzianego (ostrzeżenie).
+- Złączki przejściowe Al/Cu (bimetaliczne) jako element na szynie, z tą samą liczbą żył co WLZ.
+- WLZ – obliczenia (parametry sieci: przewód, długość, ułożenie, materiał): sprawdzenie obciążalności wobec zabezpieczenia przedlicznikowego (gG: 1,6·In ≤ 1,45·Iz, inaczej In ≤ Iz; tylko Cu 1,5–16 mm² z tabel w programie), dla Al obciążalność nie jest sprawdzana – brak zweryfikowanych tabel Al; spadek napięcia WLZ (γ Cu 56, Al 34) z mocy zainstalowanej (bez współczynnika jednoczesności) doliczany do każdego obwodu wobec limitu 3 %/5 % od złącza; WLZ na schemacie i wydruku.
 
 ### Dokumentacja
 - Arkusz A4 do druku/PDF: rysunek, schemat jednokreskowy, obwody z fazą/RCD/obliczeniami, bilans faz, zestawienie materiałów, lista połączeń, wynik kontroli.

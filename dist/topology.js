@@ -4,6 +4,7 @@
 (function(root){
 const M=root.DIN||require('./model.js');
 const {TYPES,BUSBARS,BUSBAR_DEVICES,MAIN_TYPES,ports}=M;
+const CORES_PEN=n=>(M.CORES[n]||[]).includes('PEN');
 const LIVE=['L1','L2','L3'],SOURCES=[...LIVE,'N'],RCD_TYPES=['RCD','RCD2','RCBO'];
 const key=(device,port)=>device+':'+port;
 const span=c=>[c.slot,c.slot+TYPES[c.type].width-1];
@@ -38,8 +39,8 @@ function components(E){const adj=adjacency(E),comp=new Map();let id=0;for(const 
 const sameComp=(comp,a,b)=>comp.has(a)&&comp.get(a)===comp.get(b);
 
 function analyze(s){
- const issues=[],E=edges(s),mains=s.components.filter(c=>MAIN_TYPES.includes(c.type)),net=s.network||{},byId=new Map(s.components.map(c=>[c.id,c]));
- const res={supplied:mains.length>0,circuits:[],balance:{L1:0,L2:0,L3:0,unknown:0,total:0},issues,phaseOf:new Map()};
+ const issues=[],E=edges(s),mains=s.components.filter(c=>MAIN_TYPES.includes(c.type)),wlzs=s.components.filter(c=>c.type==='WLZ'),net=s.network||{},byId=new Map(s.components.map(c=>[c.id,c]));
+ const res={supplied:mains.length>0||wlzs.length>0,circuits:[],balance:{L1:0,L2:0,L3:0,unknown:0,total:0},issues,phaseOf:new Map()};
  const roleOf=node=>{const[d,p]=node.split(':');const c=byId.get(d);return c&&ports(c).find(x=>x.key===p)?.role};
  const label=node=>{const[d,p]=node.split(':');const c=byId.get(d);const pt=c&&ports(c).find(x=>x.key===p);return c?c.label+' / '+(pt.side==='t'?'góra ':'dół ')+pt.role:node};
 
@@ -53,14 +54,23 @@ function analyze(s){
   for(const o of bb)if(o.id<b.id&&o.row===b.row&&o.side===b.side&&o.from<=b.to&&b.from<=o.to)issues.push({severity:'error',busbar:b.id,title:'Nakładające się szyny',text:`Dwie szyny po tej samej stronie rzędu ${b.row+1} zachodzą na siebie.`});
  }
 
- if(!mains.length){
-  issues.push({severity:'info',title:'Brak punktu zasilania – nie sprawdzono topologii',text:'Dodaj wyłącznik główny (FR). Jego górne zaciski są w modelu zasilaniem L1, L2, L3 i N. Bez tego faz, zwarć, grup RCD ani bilansu nie sprawdzono.'});
+ if(!mains.length&&!wlzs.length){
+  issues.push({severity:'info',title:'Brak punktu zasilania – nie sprawdzono topologii',text:'Dodaj wprowadzenie WLZ albo wyłącznik główny (FR). Zaciski WLZ (a bez WLZ górne zaciski FR) są w modelu zasilaniem L1, L2, L3 i N. Bez tego faz, zwarć, grup RCD ani bilansu nie sprawdzono.'});
   for(const c of s.circuits){res.circuits.push({id:c.id,status:'nodata',phase:null,rcd:[]});res.balance.unknown+=c.power;res.balance.total+=c.power}
   return res;
  }
 
  // A single-pole main switch terminal 'L' is the L1 source; a 1-phase supply energises only L1 and N.
- const starts=l=>mains.flatMap(m=>ports(m).filter(p=>p.side==='t'&&(p.role===l||(l==='L1'&&p.role==='L'))).map(p=>key(m.id,p.key)));
+ // With a WLZ entry on the board, its cores are the source (PEN carries N) and the main switch must be wired from it.
+ const starts=l=>(wlzs.length?wlzs.flatMap(m=>ports(m).filter(p=>p.role===l||(l==='L1'&&p.role==='L')||(l==='N'&&p.role==='PEN')).map(p=>key(m.id,p.key))):mains.flatMap(m=>ports(m).filter(p=>p.side==='t'&&(p.role===l||(l==='L1'&&p.role==='L'))).map(p=>key(m.id,p.key))));
+ for(const wz of wlzs){const n=wz.cores||5,sys=net.system,mat=net.wlz?.material;
+  if(net.supply==='1F'&&n>=4)issues.push({severity:'warn',device:wz.id,title:'WLZ 3-fazowy przy zasilaniu 1-fazowym',text:`${wz.label} ma ${n} żył (L1, L2, L3…), a w parametrach sieci zasilanie jest 1-fazowe. Model zasila tylko L1 i N.`});
+  if(net.supply==='3F'&&n<=3)issues.push({severity:'warn',device:wz.id,title:'WLZ 1-fazowy przy zasilaniu 3-fazowym',text:`${wz.label} ma ${n} żyły (L, N/PEN…), a zasilanie jest 3-fazowe. Sprawdź liczbę żył WLZ.`});
+  if(CORES_PEN(n)&&(sys==='TN-S'||sys==='TT'))issues.push({severity:'error',device:wz.id,title:'Żyła PEN w układzie '+sys,text:`${wz.label} ma żyłę PEN (${n} żył), a układ sieci to ${sys}. W ${sys} WLZ prowadzi osobne N${sys==='TN-S'?' i PE':''} – sprawdź przewód albo układ sieci.`});
+  if(mat==='Al'){const direct=s.wires.filter(w=>(w.a.device===wz.id||w.b.device===wz.id)&&byId.get(w.a.device===wz.id?w.b.device:w.a.device)?.type!=='ALCU');if(direct.length)issues.push({severity:'warn',device:wz.id,title:'Przewód Al bez złączki Al/Cu',text:`${direct.length} ${direct.length===1?'żyła':'żył'} aluminiowego WLZ ${direct.length===1?'idzie':'idą'} wprost do zacisku miedzianego. Zastosuj złączki przejściowe Al/Cu albo aparaty z zaciskami dopuszczonymi do Al.`})}
+  else if(mat==='Cu'&&s.wires.some(w=>(w.a.device===wz.id&&byId.get(w.b.device)?.type==='ALCU')||(w.b.device===wz.id&&byId.get(w.a.device)?.type==='ALCU')))issues.push({severity:'info',device:wz.id,title:'Złączka Al/Cu przy miedzianym WLZ',text:'W parametrach sieci WLZ jest miedziany – złączka przejściowa Al/Cu nie jest potrzebna.'});
+ }
+ if(wlzs.length&&!net.wlz?.material)issues.push({severity:'info',title:'Brak danych: materiał WLZ',text:'Nie podano, czy WLZ jest miedziany czy aluminiowy, więc nie sprawdzono potrzeby złączek Al/Cu.'});
  const active=net.supply==='1F'?['L1','N']:SOURCES;
  if(!net.supply)issues.push({severity:'info',title:'Brak danych: liczba faz zasilania',text:'Nie podano, czy zasilanie jest 1- czy 3-fazowe. Model przyjął napięcie na wszystkich fazowych zaciskach wyłącznika głównego. Uzupełnij w parametrach sieci.'});
  if(!net.system)issues.push({severity:'info',title:'Brak danych: układ sieci',text:'Nie podano układu sieci (TN-S, TN-C-S, TT), więc połączenia N z PE oceniono jako wymagające sprawdzenia.'});
@@ -100,7 +110,7 @@ function analyze(s){
   // Each pole of a multi-pole breaker is followed separately; power is split evenly over its phases.
   const outs=ports(d).filter(p=>p.side==='b'&&p.role==='L').map(p=>key(d.id,p.key)),out=outs[0],per=outs.map(o=>[...(full.get(o)||[])].filter(l=>LIVE.includes(l)));
   if(per.some(p=>p.length>1)){row.status='short';res.balance.unknown+=ci.power}
-  else if(per.every(p=>!p.length)){row.status=d.on?'unpowered':'off';res.balance.unknown+=ci.power;if(d.on)issues.push({severity:'warn',device:d.id,title:'Obwód bez zasilania: '+ci.name,text:`${d.label} nie jest połączony z fazą wyłącznika głównego (w modelu).`})}
+  else if(per.every(p=>!p.length)){row.status=d.on?'unpowered':'off';res.balance.unknown+=ci.power;if(d.on)issues.push({severity:'warn',device:d.id,title:'Obwód bez zasilania: '+ci.name,text:`${d.label} nie jest połączony z fazą ${wlzs.length?'WLZ':'wyłącznika głównego'} (w modelu).`})}
   else if(per.some(p=>!p.length)){row.status='partial';res.balance.unknown+=ci.power;issues.push({severity:'warn',device:d.id,title:'Niepełne zasilanie: '+ci.name,text:`Nie wszystkie bieguny ${d.label} mają napięcie (w modelu). Odbiornik wielofazowy pracowałby bez jednej fazy.`})}
   else{
    const phases=per.map(p=>p[0]);

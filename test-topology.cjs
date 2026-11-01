@@ -169,6 +169,22 @@ const penx=sys=>{const b=board();b.network={system:sys,supply:'3F'};b.components
 r=penx('TN-C-S');assert.deepEqual(errors(r),[],'PEN split terminal in TN-C-S');assert.ok(r.issues.some(i=>i.title==='Rozdział PEN w rozdzielnicy (TN-C-S)'));
 r=penx('TN-S');assert.ok(errors(r).some(i=>i.title==='Połączenie N z PE w układzie TN-S'),'bridge in TN-S is an error');
 
+// WLZ entry: its cores are the source; Al needs Al/Cu terminals; PEN core only in TN-C(-S)
+const wlzBoard=(net,direct=false)=>{const b=board();b.network={system:'TN-C-S',supply:'3F',...net,wlz:{material:'Al',cores:4,...net.wlz}};b.wires=b.wires.filter(w=>w.a.device!=='Q0'||!w.a.port.startsWith('t'));
+ b.components.push({...dev('W1','WLZ',-1,0),cores:4},{...dev('XA','ALCU',3,4),cores:4});
+ if(direct)b.wires.push(wire('W1','t0','Q0','t0'),wire('W1','t1','Q0','t1','L2'),wire('W1','t2','Q0','t2','L3'),wire('W1','t3','Q0','t3','PEN'));
+ else b.wires.push(...[0,1,2,3].map(i=>wire('W1','t'+i,'XA','t'+i,['L1','L2','L3','PEN'][i])),wire('XA','b0','Q0','t0'),wire('XA','b1','Q0','t1','L2'),wire('XA','b2','Q0','t2','L3'),wire('XA','b3','Q0','t3','PEN'));return b};
+let wb=wlzBoard({});r=analyze(wb);assert.deepEqual(errors(r),[],'WLZ Al -> Al/Cu -> main');const rc1=r.circuits.find(c=>c.id==='c1');assert.equal(rc1.status,'ok');assert.equal(rc1.phase,'L1','phase traced from WLZ core L1');
+assert.ok(!titles(r).includes('Przewód Al bez złączki Al/Cu'));assert.deepEqual(validate(wb).filter(i=>i.severity==='error'),[],'PEN wires to N terminal are consistent');
+assert.ok(titles(analyze(wlzBoard({},true))).includes('Przewód Al bez złączki Al/Cu'),'Al straight to copper');
+assert.ok(titles(analyze(wlzBoard({system:'TN-S'}))).includes('Żyła PEN w układzie TN-S'));
+wb=wlzBoard({});wb.wires=wb.wires.filter(w=>w.b.device!=='Q0');r=analyze(wb);assert.ok(titles(r).some(t=>t.startsWith('Obwód bez zasilania')||t.startsWith('Brak')),'main not fed from WLZ');
+assert.throws(()=>parse({...wlzBoard({}),components:[...wlzBoard({}).components.slice(0,-1),{...dev('XA','ALCU',3,4),cores:7}]}),/aparat/);
+assert.equal(parse(wlzBoard({})).components.find(c=>c.id==='W1').cores,4);
+assert.equal(parse(wlzBoard({wlz:{from:'top'}})).network.wlz.from,'top');assert.throws(()=>parse(wlzBoard({wlz:{from:'bok'}})),/sieci/);
+assert.equal(parse({...wlzBoard({}),components:wlzBoard({}).components.map(c=>c.id==='W1'?{...c,row:0}:c)}).components.find(c=>c.id==='W1').row,-1,'WLZ moved off the rail');
+assert.throws(()=>parse({...wlzBoard({}),components:wlzBoard({}).components.map(c=>c.id==='XA'?{...c,row:-1}:c)}),/zachodzą|szyn/,'only the cable uses the entry zone');
+
 // Import validation for busbars and circuit N bar
 assert.equal(parse(board()).busbars.length,1);
 assert.throws(()=>parse({...board(),busbars:[{id:'x',type:'2P',side:'t',row:0,from:0,to:1}]}),/szyna/);

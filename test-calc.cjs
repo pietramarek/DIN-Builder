@@ -37,12 +37,14 @@ assert.ok(r.issues.some(i=>i.severity==='error'&&i.text.includes('B.52.4')),'B25
 
 // WLZ: overload check against the pre-meter fuse and voltage drop added to every circuit
 const {wlzCheck}=require('./dist/calc.js');
-let w3={version:1,name:'W',network:{system:'TN-C-S',supply:'3F',mainFuse:'3 × 32 A gG',wlz:{cable:'YKY 5 × 10',length:20,method:'C'}},components:[dev('F','MCB','B16')],wires:[],circuits:[{id:'c',name:'Gniazda',device:'F',power:9000,cable:'3 × 2,5',length:20,method:'C',kind:'other'}]};
+let w3={version:1,name:'W',network:{system:'TN-C-S',supply:'3F',mainFuse:'3 × 32 A gG',wlz:{cable:'YKY 5 × 10',length:20,method:'C',material:'Cu'}},components:[dev('F','MCB','B16')],wires:[],circuits:[{id:'c',name:'Gniazda',device:'F',power:9000,cable:'3 × 2,5',length:20,method:'C',kind:'other'}]};
 let wr=wlzCheck(w3);assert.equal(wr.Iz,57,'10 mm² C three loaded');assert.deepEqual(wr.issues,[],'1.6×32=51.2 <= 1.45×57=82.7');
 assert.ok(Math.abs(wr.dU-100*9000*20/(56*10*400*400))<1e-9,'WLZ drop at installed power');
 w3.network.mainFuse='3 × 40 A gG';w3.network.wlz.cable='YKY 5 × 4';w3.network.wlz.method='A1';wr=wlzCheck(w3);
 assert.ok(wr.issues.some(i=>i.severity==='error'&&i.title.startsWith('WLZ za słaba')),'1.6×40=64 > 1.45×24');
-w3.network.wlz={cable:'YKY 5 × 10',length:40,method:'C'};w3.network.mainFuse='3 × 32 A gG';
+w3.network.wlz={cable:'YAKY 4 × 16',length:20,method:'C',material:'Al'};wr=wlzCheck(w3);
+assert.ok(Math.abs(wr.dU-100*9000*20/(34*16*400*400))<1e-9,'Al drop uses gamma 34');assert.ok(wr.issues.some(i=>i.title==='Brak danych: obciążalność WLZ aluminiowego'),'no Al ampacity table');
+w3.network.wlz={cable:'YKY 5 × 10',length:40,method:'C',material:'Cu'};w3.network.mainFuse='3 × 32 A gG';
 const ac=analyzeCircuits(w3),cr=ac.results[0];assert.ok(cr.dUw>0&&Math.abs(cr.dUtotal-(cr.dU+cr.dUw))<1e-12,'circuit drop includes WLZ');
 assert.ok(analyzeCircuits({...w3,network:{supply:'3F'}}).issues.some(i=>i.title==='Brak danych: WLZ'),'missing WLZ reported');
 assert.throws(()=>parse({...w3,network:{...w3.network,wlz:{method:'Z'}}}),/sieci/);

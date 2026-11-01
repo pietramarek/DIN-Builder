@@ -13,7 +13,7 @@ const METHODS={A1:'A1 – przewody jednożyłowe w rurce w ścianie izolacyjnej'
 const KINDS={light:'oświetlenie',other:'gniazda / inne'};
 // Recommended maximum voltage drop for installations supplied from a public LV network: PN-HD 60364-5-52, annex G (informative).
 const LIMIT={light:3,other:5};
-const GAMMA_CU=56,UN=230,UL=400; // m/(Ω·mm²) at 20 °C; nominal phase voltage
+const GAMMA_CU=56,GAMMA_AL=34,UN=230,UL=400; // conductivity m/(Ω·mm²), common design values for Cu and Al; nominal voltages
 
 const num=s=>Number(String(s).replace(',','.'));
 function ratedCurrent(rating){const m=String(rating||'').match(/\b[BCDKZ]\s*(\d+(?:[.,]\d+)?)\b/i)||String(rating||'').match(/(\d+(?:[.,]\d+)?)\s*A\b/);return m?num(m[1]):null}
@@ -25,15 +25,16 @@ function fuseAmps(text){const m=String(text||'').match(/(\d+(?:[.,]\d+)?)\s*A\b/
 // (no diversity factor; 3-phase assumes balanced phases) and added to each circuit, so limits apply from the origin.
 // Overload: gG fuses need 1.6·In ≤ 1.45·Iz (PN-HD 60364-4-43, conventional fusing current I2 = 1.6·In); otherwise In ≤ Iz.
 function wlzCheck(s){
- const n=s.network||{},w=n.wlz||{},three=n.supply!=='1F',out={S:crossSection(w.cable),length:w.length,method:w.method||'',In:fuseAmps(n.mainFuse),gG:/\bgG\b/i.test(n.mainFuse||''),Iz:null,dU:null,issues:[]};
- const missing=[];if(out.S==null)missing.push('przekrój przewodu (np. YKY 5 × 10)');if(!(w.length>0))missing.push('długość');if(!w.method)missing.push('sposób ułożenia');
+ const n=s.network||{},w=n.wlz||{},three=n.supply?n.supply==='3F':w.cores?w.cores>=4:true,al=w.material==='Al',out={S:crossSection(w.cable),length:w.length,method:w.method||'',In:fuseAmps(n.mainFuse),gG:/\bgG\b/i.test(n.mainFuse||''),Iz:null,dU:null,issues:[]};
+ const missing=[];if(out.S==null)missing.push('przekrój przewodu (np. YKY 5 × 10)');if(!(w.length>0))missing.push('długość');if(!w.method)missing.push('sposób ułożenia');if(!w.material)missing.push('materiał żył (Cu/Al)');
  if(missing.length&&s.circuits.some(c=>c.device))out.issues.push({severity:'info',title:'Brak danych: WLZ',text:'Spadek napięcia obwodów jest liczony tylko od rozdzielnicy, a obciążalność WLZ nie została sprawdzona. Uzupełnij w parametrach sieci: '+missing.join(', ')+'.'});
- if(out.S!=null&&w.method){out.Iz=(three?IZ3:IZ)[w.method]?.[out.S]??null;
+ if(al&&out.S!=null&&w.method)out.issues.push({severity:'info',title:'Brak danych: obciążalność WLZ aluminiowego',text:'Program ma tylko zweryfikowane tabele dla miedzi, więc obciążalności WLZ Al wobec zabezpieczenia przedlicznikowego nie sprawdzono. Spadek napięcia liczony z γ = 34 m/(Ω·mm²).'});
+ if(!al&&w.material&&out.S!=null&&w.method){out.Iz=(three?IZ3:IZ)[w.method]?.[out.S]??null;
   if(out.Iz==null)out.issues.push({severity:'info',title:'Brak danych: obciążalność WLZ',text:`Tabela w programie obejmuje przekroje 1,5–16 mm² Cu; ${fmt(out.S,1)} mm² nie jest w niej ujęty.`});
   else if(out.In==null)out.issues.push({severity:'info',title:'Brak danych: zabezpieczenie przedlicznikowe',text:'Podaj prąd zabezpieczenia przedlicznikowego (np. 3 × 25 A gG), aby sprawdzić obciążalność WLZ.'});
   else{const ok=out.gG?1.6*out.In<=1.45*out.Iz:out.In<=out.Iz;if(!ok)out.issues.push({severity:'error',title:'WLZ za słaba dla zabezpieczenia przedlicznikowego',text:out.gG?`1,6 × ${fmt(out.In,0)} A = ${fmt(1.6*out.In,1)} A > 1,45 × Iz = ${fmt(1.45*out.Iz,1)} A (Cu ${fmt(out.S,1)} mm², ułożenie ${w.method}, ${three?'trzy':'dwie'} żyły obciążone, 30 °C – PN-HD 60364-4-43 i 60364-5-52). Zwiększ przekrój WLZ.`:`In = ${fmt(out.In,0)} A > Iz = ${fmt(out.Iz,1)} A (Cu ${fmt(out.S,1)} mm², ułożenie ${w.method}). Zwiększ przekrój WLZ.`})}}
  const P=s.circuits.reduce((a,c)=>a+(Number(c.power)||0),0);
- if(out.S!=null&&w.length>0&&P>0)out.dU=three?100*P*w.length/(GAMMA_CU*out.S*UL*UL):200*P*w.length/(GAMMA_CU*out.S*UN*UN);
+ const g=al?GAMMA_AL:GAMMA_CU;if(w.material&&out.S!=null&&w.length>0&&P>0)out.dU=three?100*P*w.length/(g*out.S*UL*UL):200*P*w.length/(g*out.S*UN*UN);
  return out;
 }
 function checkCircuit(s,c,wlz){
