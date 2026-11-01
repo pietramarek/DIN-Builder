@@ -99,7 +99,7 @@ r=analyze(s);assert.equal(r.circuits[0].phase,'L1','MAIN2 L terminal is the L1 s
 
 // PEN split: N joined to PE before the RCD
 const pen=sys=>{const b=board();b.network={system:sys,supply:'3F'};b.wires.push(wire('N0','b0','PE','b0','PEN'));return analyze(b)};
-r=pen('TN-C-S');assert.deepEqual(errors(r),[],'PEN split in TN-C-S is not an error');assert.ok(r.issues.some(i=>i.title==='Rozdział PEN w rozdzielnicy (TN-C-S)'));
+r=pen('TN-C-S');assert.deepEqual(errors(r).map(i=>i.title),['Rozdział PEN za wyłącznikiem głównym'],'split from the N bar behind the main switch: only the switched-PEN error');assert.ok(r.issues.some(i=>i.title==='Rozdział PEN w rozdzielnicy (TN-C-S)'));
 r=pen('TN-S');assert.ok(errors(r).some(i=>i.title==='Połączenie N z PE w układzie TN-S'));
 r=pen('TT');assert.ok(errors(r).some(i=>i.title==='Połączenie N z PE w układzie TT'));
 r=pen('');assert.ok(r.issues.some(i=>i.severity==='warn'&&i.title==='Połączenie N z PE – sprawdź układ sieci'));
@@ -184,6 +184,12 @@ assert.equal(parse(wlzBoard({})).components.find(c=>c.id==='W1').cores,4);
 assert.equal(parse(wlzBoard({wlz:{from:'top'}})).network.wlz.from,'top');assert.throws(()=>parse(wlzBoard({wlz:{from:'bok'}})),/sieci/);
 assert.equal(parse({...wlzBoard({}),components:wlzBoard({}).components.map(c=>c.id==='W1'?{...c,row:0}:c)}).components.find(c=>c.id==='W1').row,-1,'WLZ moved off the rail');
 assert.throws(()=>parse({...wlzBoard({}),components:wlzBoard({}).components.map(c=>c.id==='XA'?{...c,row:-1}:c)}),/zachodzą|szyn/,'only the cable uses the entry zone');
+
+// PEN split after the main switch is an error; PEN on the PE terminal of the split block is the correct order
+{const b=board();b.network={system:'TN-C-S',supply:'3F'};b.components.push(dev('X1','PENX',0,12));b.wires.push(wire('Q0','b3','X1','t1','N'),wire('X1','b0','PE','b0','PE'));assert.ok(errors(analyze(b)).some(i=>i.title==='Rozdział PEN za wyłącznikiem głównym'))}
+r=penx('TN-C-S');assert.ok(!titles(r).includes('Rozdział PEN za wyłącznikiem głównym'),'split on the supply side of the main switch');
+{const b=wlzBoard({system:'TN-C-S'});b.components.push(dev('X1','PENX',0,12));b.wires=b.wires.filter(w=>!(w.a.device==='XA'&&w.a.port==='b3'));b.wires.push(wire('XA','b3','X1','t0','PEN'),wire('X1','t1','Q0','t3','N'),wire('X1','b0','PE','b0','PE'));const rr=analyze(b);
+ assert.deepEqual(errors(rr),[],'WLZ PEN -> PE side of split block -> N to main');assert.ok(!titles(rr).includes('PEN podłączony do zacisku N'));assert.ok(titles(analyze(wlzBoard({}))).includes('PEN podłączony do zacisku N'))}
 
 // Other network systems: TN-C has no RCDs and N=PE is legitimate; IT and TT never join N with PE
 r=penx('TN-C');assert.ok(titles(r).includes('N i PE połączone (TN-C)'));assert.ok(errors(r).some(i=>i.title==='Wyłącznik różnicowoprądowy w układzie TN-C'),'RCD in TN-C');
