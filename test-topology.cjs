@@ -112,6 +112,20 @@ assert.equal(validate({...board(),wires:[wire('N0','b0','PE','b0','PEN')]}).filt
 assert.equal(parse({...board(),network:{system:'TN-C-S',supply:'1F',mainFuse:'25 A gG'}}).network.system,'TN-C-S');
 assert.throws(()=>parse({...board(),network:{system:'IT'}}),/sieci/);
 
+// Distribution block: terminals of the same pole are one bar, different poles stay isolated
+s={version:1,name:'BR',rows:2,modules:18,network:{system:'TN-S',supply:'3F'},components:[dev('Q','MAIN',0,0),dev('BR','DB4',0,5),dev('F','MCB',1,0),dev('G','MCB',1,1),dev('NB','NB15',1,6)],
+ wires:[wire('Q','b0','BR','t0'),wire('Q','b1','BR','t2','L2'),wire('Q','b3','BR','t6','N'),wire('BR','b1','F','t0'),wire('BR','b3','G','t0','L2'),wire('BR','b7','NB','t0','N')],
+ circuits:[{id:'f',name:'Gniazda',device:'F',power:1000,cable:'3x2,5',nBar:'NB'},{id:'g',name:'Oświetlenie',device:'G',power:200,cable:'3x1,5',nBar:'NB'}]};
+r=analyze(s);
+assert.deepEqual(errors(r),[],'4P block keeps poles isolated: '+titles(r));
+assert.equal(r.circuits[0].phase,'L1','L1 bar passes L1 from top to bottom terminal');assert.equal(r.circuits[1].phase,'L2','L2 bar is separate');
+assert.ok(!r.issues.some(i=>i.title.startsWith('Listwa N bez połączenia')),'15-terminal N strip works as circuit N bar');
+s.wires.push(wire('BR','b0','BR','b2'));
+assert.throws(()=>parse(s),/połączenie/,'wire on the same device is rejected');
+s.wires.pop();s.wires.push(wire('F','b0','BR','b2'));r=analyze(s);
+assert.ok(errors(r).some(i=>i.title.startsWith('Zwarcie')),'bridging two block poles is a short');
+assert.equal(parse({...s,circuits:[{...s.circuits[0],nBar:'NB'}]}).circuits[0].nBar,'NB','N strip accepted as circuit N bar');
+
 // Import validation for busbars and circuit N bar
 assert.equal(parse(board()).busbars.length,1);
 assert.throws(()=>parse({...board(),busbars:[{id:'x',type:'2P',side:'t',row:0,from:0,to:1}]}),/szyna/);
