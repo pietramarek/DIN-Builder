@@ -1,24 +1,65 @@
-# Rozdzielnia Studio — dalszy rozwój
+# Rozdzielnia Studio — plan rozwoju
 
-Pierwszy etap: interaktywny prototyp 2D działający lokalnie w przeglądarce, bez usług zewnętrznych. Zapis lokalny i eksport JSON umożliwiają testowanie modelu bez konta.
+Interaktywny edytor rozdzielnic DIN w przeglądarce (HTML, CSS, JavaScript, SVG, bez frameworka). Projekty są
+zapisywane lokalnie w przeglądarce, z eksportem JSON i wydrukiem PDF. Produkcja: https://rozdzielnia-studio.vercel.app
+(numer commitu w lewym dolnym rogu).
 
-## Kolejny etap
+Stan na 1.11.2026. Szczegóły techniczne i zasady jakości: `AGENTS.md`.
 
-- Migracja edytora do Next.js / TypeScript i React Flow po zatwierdzeniu interakcji.
-- Firebase Authentication i Firestore: projekty przypisane do użytkownika, reguły dostępu oraz wersjonowanie; testy reguł przed wdrożeniem.
-- Vercel: aplikacja i endpoint analizy AI. Klucze dostawcy wyłącznie po stronie serwera.
-- Wersjonowany format projektu: urządzenia, zaciski, wewnętrzne połączenia urządzeń, przewody, obwody, parametry sieci i położenie na szynach.
-- Oddzielne modelowanie przewodności, ochrony i fizycznego rozmieszczenia. Linie na ekranie nie definiują elektrycznej funkcji przewodu.
-- Zweryfikowany katalog producentów: szerokości, zaciski, dopuszczalne przekroje i liczby żył, charakterystyki, szyny i ograniczenia montażu.
-- Silnik reguł z identyfikatorem i wersją każdej reguły, zakresem stosowalności, źródłem oraz listą brakujących danych.
-- AI wyjaśnia deterministyczne wyniki kontroli oraz proponuje różnicę w projekcie do zaakceptowania. Każda propozycja jest ponownie walidowana; AI nie nadaje projektowi statusu bezpiecznej instalacji.
+## Zrobione
+
+### Edytor i obsługa
+- Rozmiar obudowy wybierany przy nowym projekcie (1–8 szyn × 6–36 modułów) i zmieniany później; „+ Szyna” i „×” przy rzędzie.
+- Zoom 40–200% (przyciski, Ctrl +/−, dopasowanie), poprawne przeciąganie przy powiększeniu.
+- Wygląd aparatów wzorowany na Schneider Acti9 (grafika poglądowa, przykładowe nazwy ze źródłami w `CATALOG-SOURCES.md`).
+- Etykiety obwodów pod wyłącznikami (jak naklejki w rozdzielnicy).
+- Klik w zacisk z podłączonym przewodem trafia w zacisk; czytelny wynik kontroli (czerwony przy konfliktach, zwijane grupy informacji).
+- Lista projektów z autozapisem i statusem zapisu, duplikowanie i usuwanie, migracja starego zapisu.
+- Telefon: dopasowanie planszy przy pierwszym wejściu, przewijanie katalogu palcem (sprawdzone w ramce 390 px, nie na fizycznym telefonie).
+- Wersja (commit i godzina) w lewym dolnym rogu, generowana przy budowaniu na Vercel.
+
+### Aparatura
+- Wyłącznik główny 4P i 1P+N, RCD 4P i 2P, MCB 1P/2P/3P/3P+N, RCBO, SPD.
+- Listwy N i PE (zwykłe oraz bezgwintowe 7/11/15 zacisków), GSU (główna szyna uziemiająca).
+- Bloki rozdzielcze 2P/4P/5P z 7/11/15 otworami na tor – każdy tor jako osobna szyna z wszystkimi otworami; stare bloki z zapisanych projektów są automatycznie przenoszone na nowy model (gdy się mieszczą).
+- Szyny grzebieniowe 1P i 3P (piny L1/L2/L3 co moduł) dodawane z panelu wyłącznika.
+
+### Sieć i topologia (`topology.js`)
+- Parametry sieci: układ TN-S/TN-C-S/TT, zasilanie 1F/3F, zabezpieczenie przedlicznikowe; brak danych zgłaszany jawnie.
+- Wyznaczanie faz dla każdego zacisku i każdego bieguna, bilans mocy na L1–L3.
+- Wykrywane: zwarcia w modelu, PE pod napięciem, obejście RCD, wspólny N dwóch grup RCD, N obwodu spoza grupy RCD, N z PE za RCD, rozdział PEN (dozwolony tylko w TN-C-S), obwody bez RCD, niepełne zasilanie obwodu wielofazowego, bieguny na tej samej fazie.
+
+### Obliczenia (`calc.js`)
+- In ≤ Iz dla Cu/PVC przy 30 °C (PN-HD 60364-5-52 tab. B.52.2 i B.52.4, ułożenia A1/A2/B1/B2/C, 1,5–16 mm², bez współczynników korekcyjnych).
+- Spadek napięcia obwodu (1F, 2P jako dwie połówki, 3F przy 400 V) wobec zalecanych 3%/5% (zał. G, informacyjny).
+
+### Dokumentacja
+- Arkusz A4 do druku/PDF: rysunek, schemat jednokreskowy, obwody z fazą/RCD/obliczeniami, bilans faz, zestawienie materiałów, lista połączeń, wynik kontroli.
+- Schemat jednokreskowy (`schematic.js`) generowany z połączeń – przycisk „Schemat”.
+
+### Kreator (`wizard.js`)
+- Rozdzielnica z listy obwodów: dobór wyłączników i przekrojów, grupy RCD, wyrównanie faz przy ciągłych rzędach pod szyną 3P, listwy N/PE, SPD, rozdział PEN, wszystkie przewody. Wynik jako nowy projekt, bez błędów kontroli.
+
+### Testy
+`node test-model.cjs && node test-topology.cjs && node test-calc.cjs && node test-schematic.cjs && node test-wizard.cjs` –
+każda reguła ma przypadek poprawny, błędny i brak danych.
+
+## Do zrobienia
+
+Kolejność według wartości dla użytkownika:
+
+1. **Wygodniejsze rysowanie** – zaznaczanie i przesuwanie wielu aparatów, kopiowanie, ręczna zmiana przebiegu przewodu, większe pola dotyku dla zacisków na telefonie; test na fizycznym telefonie.
+2. **Schemat zgodny z normą** – symbole PN-EN 60617, tabelka rysunkowa, numeracja obwodów i aparatów; obecny schemat jest poglądowy.
+3. **Zweryfikowany katalog producentów** – parametry z kart katalogowych (szerokości, zaciski, przekroje, charakterystyki, zgodność szyn grzebieniowych) zamiast modeli umownych.
+4. **Dokładniejsze obliczenia** – współczynniki temperatury i grupowania, przewody Al i XLPE, spadek napięcia od złącza (WLZ), wybiórczość, prąd zwarciowy i impedancja pętli (wymagają danych sieci i sprawdzonych przypadków odniesienia).
+5. **Kreator – rozszerzenia** – charakterystyka C dla silników, RCD typu A/F/B, RCBO zamiast grup, limity prądu RCD i wyłącznika głównego wobec obciążenia, zapamiętane szablony obwodów.
+6. **Konta i projekty w chmurze** – Firebase Authentication + Firestore, reguły dostępu, wersje projektów (wymaga projektu Firebase i konfiguracji).
+7. **AI** – endpoint serwerowy (klucz tylko po stronie serwera) wyjaśniający wyniki kontroli i proponujący zmiany do akceptacji, z ponowną walidacją i cofaniem.
+8. **Powiązanie z Eco Volt** – projekt rozdzielnicy wysyłany razem z zapytaniem o wycenę.
+9. **Porządek w kodzie** – podział `app.js` na moduły; ewentualna migracja do Next.js + TypeScript z zachowaniem importu dotychczasowych projektów.
 
 ## Zakres weryfikacji
 
-Trzy wyniki: wykryty problem, sprawdzone w określonym zakresie, niewystarczające dane. Brak wykrytych problemów nie oznacza zatwierdzenia projektu.
-
-Obliczenia ochrony, obciążalności, spadków napięcia i selektywności wymagają odrębnej implementacji, danych wejściowych oraz sprawdzonych przypadków odniesienia. Weryfikacja produktu powinna obejmować przegląd przez osobę kompetentną w projektowaniu instalacji. Pomiary i jakość rzeczywistego montażu pozostają poza modelem.
-
-## Testy przed rozszerzeniem zastosowania
-
-Przykłady poprawnych i błędnych topologii, neutralne przypisane do grup RCD, zmiana stanu wyłączników, rozgałęzienia i cykle, kompletność obwodów, migracje plików, błędne dane wejściowe oraz uprawnienia do projektów. Każda reguła powinna mieć przypadki pozytywne, negatywne i przypadki braku danych.
+Trzy wyniki: wykryty problem, sprawdzone w określonym zakresie, niewystarczające dane. Brak wykrytych problemów nie
+oznacza zatwierdzenia projektu. Weryfikacja produktu powinna obejmować przegląd przez osobę kompetentną w
+projektowaniu instalacji. Pomiary i jakość rzeczywistego montażu pozostają poza modelem.

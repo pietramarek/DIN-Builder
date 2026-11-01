@@ -147,6 +147,23 @@ assert.deepEqual(r.circuits.find(c=>c.id==='h').phases,['L1','L2']);
 assert.deepEqual(r.circuits.find(c=>c.id==='p2').phases,['L3','L1','L2'],'3P MCB starting on pin 3 of the comb gets L3/L1/L2');
 assert.deepEqual(errors(r),[],'multi-pole comb setup has no errors: '+titles(r));
 
+// Grid distribution block: every hole of a pole is one bar; poles isolated
+s={version:1,name:'G',rows:2,modules:18,network:{system:'TN-S',supply:'3F'},components:[dev('Q','MAIN',0,0),dev('B','DB4_11',0,5),dev('F','MCB',1,0),dev('G','MCB',1,1)],
+ wires:[wire('Q','b0','B','g0_0'),wire('Q','b1','B','g1_0','L2'),wire('B','g0_10','F','t0'),wire('B','g1_7','G','t0','L2')],
+ circuits:[{id:'f',name:'A',device:'F',power:500,cable:'3x1,5'},{id:'g',name:'B',device:'G',power:500,cable:'3x1,5'}]};
+r=analyze(s);assert.deepEqual(errors(r),[]);assert.equal(r.circuits[0].phase,'L1','first and last hole of the L1 bar are connected');assert.equal(r.circuits[1].phase,'L2');
+s.wires.push(wire('F','b0','B','g1_3'));assert.ok(errors(analyze(s)).some(i=>i.title.startsWith('Zwarcie')));
+
+// Older projects: DB5 with edge terminals migrates to the grid block, wires follow to holes of the same pole
+const legacy={version:1,name:'Old',rows:2,modules:18,components:[dev('Q','MAIN',0,0),{...dev('BR','DB5',0,5),rating:'5 × 15 otworów'}],
+ wires:[wire('Q','b0','BR','t0'),wire('Q','b1','BR','t2','L2'),wire('Q','b3','BR','b7','N')],circuits:[]};
+let m=parse(legacy);
+assert.equal(m.components[1].type,'DB5_15','migrated by hole count');
+assert.deepEqual(m.wires.map(w=>w.b.port),['g0_0','g1_0','g3_3'],'old t0/t2/b7 -> L1 hole 1, L2 hole 1, 4th N terminal -> N hole 4');
+assert.deepEqual(errors(analyze(m)),[]);
+const crowded={...legacy,components:[...legacy.components,dev('X','MCB',0,10)]};
+m=parse(crowded);assert.equal(m.components[1].type,'DB5','kept old model when the wider block does not fit');
+
 // Import validation for busbars and circuit N bar
 assert.equal(parse(board()).busbars.length,1);
 assert.throws(()=>parse({...board(),busbars:[{id:'x',type:'2P',side:'t',row:0,from:0,to:1}]}),/szyna/);
