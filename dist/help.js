@@ -101,6 +101,15 @@ ${PEN_SVG}
 <li>W tabeli obwodów wskaż „Listwę N” obwodu – wtedy program sprawdzi powrót N.</li>
 <li>Tryb RCBO w kreatorze daje każdemu obwodowi 1-fazowemu własny wyłącznik różnicowo-nadprądowy.</li>
 </ul>`},
+{id:'subboards',title:'Podrozdzielnice',html:`
+<ol>
+<li>W rozdzielnicy głównej kliknij <b>„＋ Podrozdzielnica”</b> w pasku nad katalogiem. Wybierz obwód, z którego będzie zasilana, albo utwórz nowy obwód zasilający.</li>
+<li>Podrozdzielnica to osobny projekt; pasek „Rozdzielnice w projekcie” przełącza między nimi.</li>
+<li>W rozdzielnicy głównej uzupełnij dla obwodu zasilającego aparat, przewód, długość i sposób ułożenia – to on jest „WLZ” podrozdzielnicy.</li>
+<li>Moc obwodu zasilającego sumuje się automatycznie z obwodów podrozdzielnicy (bez współczynnika jednoczesności).</li>
+<li>Spadek napięcia obwodów podrozdzielnicy jest liczony od złącza: WLZ + obwód zasilający + obwód końcowy.</li>
+<li>Przy układzie TN-C-S podrozdzielnica dostaje układ TN-S – za punktem rozdziału PEN N i PE już się nie łączą.</li>
+</ol>`},
 {id:'docs',title:'Dokumenty i pomiary',html:`
 <ul>
 <li><b>Dokumentacja projektu</b> – arkusz A4 do druku lub PDF.</li>

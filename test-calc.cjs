@@ -49,6 +49,12 @@ const ac=analyzeCircuits(w3),cr=ac.results[0];assert.ok(cr.dUw>0&&Math.abs(cr.dU
 assert.ok(analyzeCircuits({...w3,network:{supply:'3F'}}).issues.some(i=>i.title==='Brak danych: WLZ'),'missing WLZ reported');
 assert.throws(()=>parse({...w3,network:{...w3.network,wlz:{method:'Z'}}}),/sieci/);
 
+// Sub-board: the drop at its origin comes from the parent feeder circuit and is added to every circuit
+{const sb={version:1,name:'RP',feed:{project:'p1',circuit:'c9'},network:{supply:'3F'},components:[dev('F','MCB','B16')],wires:[],circuits:[{id:'x',name:'Gniazda',device:'F',power:2000,cable:'3 × 2,5',length:20,method:'C',kind:'other'}]};
+ let a=analyzeCircuits(sb,{upstream:{dU:1.5,label:'RG / Zasilanie RP'}});assert.equal(a.wlz.fed,true);assert.ok(Math.abs(a.results[0].dUtotal-(a.results[0].dU+1.5))<1e-12);assert.ok(!a.issues.some(i=>i.title==='Brak danych: WLZ'),'own WLZ not required');
+ a=analyzeCircuits(sb,{upstream:{dU:null,why:'test'}});assert.ok(a.issues.some(i=>i.title==='Brak danych: spadek napięcia do podrozdzielnicy'));assert.equal(a.results[0].dUw,null);
+ assert.equal(parse(sb).feed.circuit,'c9');assert.throws(()=>parse({...sb,feed:{project:'a b'}}),/podrozdzielnicy/)}
+
 // Missing data stays explicit
 s=board('B16',{length:undefined,method:'',kind:''});r=checkCircuit(s,s.circuits[0]);
 assert.deepEqual(r.missing,['sposób ułożenia','długość','rodzaj obwodu']);

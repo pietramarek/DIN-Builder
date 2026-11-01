@@ -24,7 +24,12 @@ function fuseAmps(text){const m=String(text||'').match(/(\d+(?:[.,]\d+)?)\s*A\b/
 // Internal supply line (WLZ) from the meter to the board. Its voltage drop is computed from the total installed power
 // (no diversity factor; 3-phase assumes balanced phases) and added to each circuit, so limits apply from the origin.
 // Overload: gG fuses need 1.6·In ≤ 1.45·Iz (PN-HD 60364-4-43, conventional fusing current I2 = 1.6·In); otherwise In ≤ Iz.
-function wlzCheck(s){
+// For a sub-board the supply drop comes from the parent board (ctx.upstream: drop at this board's origin, measured from
+// the service point); its own WLZ fields are not used.
+function wlzCheck(s,ctx){
+ if(ctx&&ctx.upstream){const u=ctx.upstream;return{fed:true,label:u.label||'',dU:u.dU??null,issues:u.dU==null?[{severity:'info',title:'Brak danych: spadek napięcia do podrozdzielnicy',text:`Nie policzono ΔU od złącza do tej rozdzielnicy (${u.why||'brak danych obwodu zasilającego'}). ΔU obwodów dotyczy tylko odcinka od tej rozdzielnicy.`}]:[]}}
+ return wlzSelf(s)}
+function wlzSelf(s){
  const n=s.network||{},w=n.wlz||{},three=n.supply?n.supply==='3F':w.cores?w.cores>=4:true,al=w.material==='Al',out={S:crossSection(w.cable),length:w.length,method:w.method||'',In:fuseAmps(n.mainFuse),gG:/\bgG\b/i.test(n.mainFuse||''),Iz:null,dU:null,issues:[]};
  const missing=[];if(out.S==null)missing.push('przekrój przewodu (np. YKY 5 × 10)');if(!(w.length>0))missing.push('długość');if(!w.method)missing.push('sposób ułożenia');if(!w.material)missing.push('materiał żył (Cu/Al)');
  if(missing.length&&s.circuits.some(c=>c.device))out.issues.push({severity:'info',title:'Brak danych: WLZ',text:'Spadek napięcia obwodów jest liczony tylko od rozdzielnicy, a obciążalność WLZ nie została sprawdzona. Uzupełnij w parametrach sieci: '+missing.join(', ')+'.'});
@@ -57,12 +62,12 @@ function checkCircuit(s,c,wlz){
   // 3 poles: symmetrical 3-phase load at 400 V. 2 poles: two 230 V halves with N, each carrying half the power.
   r.dU=r.poles>=3?100*c.power*c.length/(GAMMA_CU*r.S*UL*UL):r.poles===2?200*(c.power/2)*c.length/(GAMMA_CU*r.S*UN*UN):200*c.power*c.length/(GAMMA_CU*r.S*UN*UN);
   r.dUw=wlz?.dU??null;r.dUtotal=r.dU+(r.dUw||0);
-  if(c.kind){r.limit=LIMIT[c.kind];if(r.dUtotal>r.limit)r.issues.push({severity:'warn',device:dev.id,title:'Duży spadek napięcia: '+name,text:`ΔU ≈ ${fmt(r.dUtotal,2)}%${r.dUw!=null?` (obwód ${fmt(r.dU,2)}% + WLZ ${fmt(r.dUw,2)}%)`:''} przy ${c.power} W i ${fmt(c.length,0)} m (${fmt(r.S,1)} mm² Cu). Zalecane maks. ${r.limit}% dla obwodu „${KINDS[c.kind]}” liczone od złącza (PN-HD 60364-5-52 zał. G, informacyjny)${r.dUw!=null?'.':' – bez danych WLZ wynik dotyczy tylko odcinka od rozdzielnicy.'}`})}
+  if(c.kind){r.limit=LIMIT[c.kind];if(r.dUtotal>r.limit)r.issues.push({severity:'warn',device:dev.id,title:'Duży spadek napięcia: '+name,text:`ΔU ≈ ${fmt(r.dUtotal,2)}%${r.dUw!=null?` (obwód ${fmt(r.dU,2)}% + ${wlz?.fed?'zasilanie rozdzielnicy':'WLZ'} ${fmt(r.dUw,2)}%)`:''} przy ${c.power} W i ${fmt(c.length,0)} m (${fmt(r.S,1)} mm² Cu). Zalecane maks. ${r.limit}% dla obwodu „${KINDS[c.kind]}” liczone od złącza (PN-HD 60364-5-52 zał. G, informacyjny)${r.dUw!=null?'.':' – bez danych WLZ wynik dotyczy tylko odcinka od rozdzielnicy.'}`})}
  }
  if(r.missing.length&&!(r.missing.length===1&&r.missing[0]==='aparat'))r.issues.push({severity:'info',calcMissing:true,device:dev.id,title:'Brak danych do obliczeń: '+name,text:'Uzupełnij: '+r.missing.join(', ')+'.'});
  return r;
 }
-function analyzeCircuits(s){const wlz=wlzCheck(s),results=s.circuits.map(c=>checkCircuit(s,c,wlz));return{results,wlz,issues:[...wlz.issues,...results.flatMap(r=>r.issues)]}}
+function analyzeCircuits(s,ctx=api.contextFor?api.contextFor(s):undefined){const wlz=wlzCheck(s,ctx),results=s.circuits.map(c=>checkCircuit(s,c,wlz));return{results,wlz,issues:[...wlz.issues,...results.flatMap(r=>r.issues)]}}
 const api={wlzCheck,fuseAmps,IZ3,IZ,METHODS,KINDS,LIMIT,ratedCurrent,crossSection,checkCircuit,analyzeCircuits};
 if(typeof module!=='undefined')module.exports=api;root.DINCalc=api;
 })(typeof window!=='undefined'?window:globalThis);
