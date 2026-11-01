@@ -3,7 +3,7 @@
 // compute currents, impedances, cable ampacity or selectivity, and it is not a safety approval.
 (function(root){
 const M=root.DIN||require('./model.js');
-const {TYPES,BUSBARS,BUSBAR_DEVICES,ports}=M;
+const {TYPES,BUSBARS,BUSBAR_DEVICES,MAIN_TYPES,ports}=M;
 const LIVE=['L1','L2','L3'],SOURCES=[...LIVE,'N'],RCD_TYPES=['RCD','RCBO'];
 const key=(device,port)=>device+':'+port;
 const span=c=>[c.slot,c.slot+TYPES[c.type].width-1];
@@ -38,7 +38,7 @@ function components(E){const adj=adjacency(E),comp=new Map();let id=0;for(const 
 const sameComp=(comp,a,b)=>comp.has(a)&&comp.get(a)===comp.get(b);
 
 function analyze(s){
- const issues=[],E=edges(s),mains=s.components.filter(c=>c.type==='MAIN'),byId=new Map(s.components.map(c=>[c.id,c]));
+ const issues=[],E=edges(s),mains=s.components.filter(c=>MAIN_TYPES.includes(c.type)),net=s.network||{},byId=new Map(s.components.map(c=>[c.id,c]));
  const res={supplied:mains.length>0,circuits:[],balance:{L1:0,L2:0,L3:0,unknown:0,total:0},issues,phaseOf:new Map()};
  const roleOf=node=>{const[d,p]=node.split(':');const c=byId.get(d);return c&&ports(c).find(x=>x.key===p)?.role};
  const label=node=>{const[d,p]=node.split(':');const c=byId.get(d);const pt=c&&ports(c).find(x=>x.key===p);return c?c.label+' / '+(pt.side==='t'?'góra ':'dół ')+pt.role:node};
@@ -59,18 +59,26 @@ function analyze(s){
   return res;
  }
 
- const starts=l=>mains.flatMap(m=>ports(m).filter(p=>p.side==='t'&&p.role===l).map(p=>key(m.id,p.key)));
- const supply=list=>{const adj=adjacency(list),map=new Map();for(const l of SOURCES)for(const n of reach(adj,starts(l))){if(!map.has(n))map.set(n,new Set());map.get(n).add(l)}return map};
+ // A single-pole main switch terminal 'L' is the L1 source; a 1-phase supply energises only L1 and N.
+ const starts=l=>mains.flatMap(m=>ports(m).filter(p=>p.side==='t'&&(p.role===l||(l==='L1'&&p.role==='L'))).map(p=>key(m.id,p.key)));
+ const active=net.supply==='1F'?['L1','N']:SOURCES;
+ if(!net.supply)issues.push({severity:'info',title:'Brak danych: liczba faz zasilania',text:'Nie podano, czy zasilanie jest 1- czy 3-fazowe. Model przyjął napięcie na wszystkich fazowych zaciskach wyłącznika głównego. Uzupełnij w parametrach sieci.'});
+ if(!net.system)issues.push({severity:'info',title:'Brak danych: układ sieci',text:'Nie podano układu sieci (TN-S, TN-C-S, TT), więc połączenia N z PE oceniono jako wymagające sprawdzenia.'});
+ if(net.supply==='1F'&&mains.some(m=>m.type==='MAIN'))issues.push({severity:'info',title:'Zasilanie 1-fazowe',text:'Zaciski L2 i L3 wyłącznika głównego są w modelu bez napięcia.'});
+ if(net.supply==='3F'&&mains.every(m=>m.type==='MAIN2'))issues.push({severity:'warn',title:'Wyłącznik główny 1P+N przy zasilaniu 3-fazowym',text:'Model przyjmuje, że wyłącznik 1P+N jest na fazie L1. Sprawdź, czy rozdzielnica nie potrzebuje wyłącznika 4P.'});
+ const supply=list=>{const adj=adjacency(list),map=new Map();for(const l of active)for(const n of reach(adj,starts(l))){if(!map.has(n))map.set(n,new Set());map.get(n).add(l)}return map};
  const full=supply(E);
 
  // Shorts and live PE
- const seenShort=new Set();
+ const seenShort=new Set();let livePE=false,nOnPE=null;
  for(const[node,set]of full){
   if(node.startsWith('bb:'))continue;
   if(set.size>1){const sig=[...set].sort().join('+');if(!seenShort.has(sig)){seenShort.add(sig);issues.push({severity:'error',device:node.split(':')[0],title:'Zwarcie w modelu: '+[...set].join(' z '),text:`Połączone ze sobą: ${[...set].join(', ')} (np. przy ${label(node)}). Po załączeniu oznacza to zwarcie. Sprawdź przewody i szyny.`})}}
-  if(roleOf(node)==='PE'&&set.size){issues.push({severity:'error',device:node.split(':')[0],title:'PE pod napięciem w modelu',text:`${label(node)} jest połączony z ${[...set].join(', ')}. Przewód ochronny nie może łączyć się z przewodami czynnymi.`});break}
+  if(roleOf(node)==='PE'&&set.size){const live=[...set].filter(l=>LIVE.includes(l));if(live.length&&!livePE){livePE=true;issues.push({severity:'error',device:node.split(':')[0],title:'PE pod napięciem w modelu',text:`${label(node)} jest połączony z ${live.join(', ')}. Przewód ochronny nie może łączyć się z przewodem fazowym.`})}else if(!live.length&&!nOnPE)nOnPE=node}
  }
 
+ // N joined to PE: legitimate only as the PEN split point in TN-C-S.
+ if(nOnPE){const dev=nOnPE.split(':')[0];if(net.system==='TN-C-S')issues.push({severity:'info',device:dev,title:'Rozdział PEN w rozdzielnicy (TN-C-S)',text:`N i PE są połączone (np. przy ${label(nOnPE)}). W układzie TN-C-S to punkt rozdziału PEN; za nim N i PE nie mogą się ponownie łączyć.`});else if(net.system)issues.push({severity:'error',device:dev,title:'Połączenie N z PE w układzie '+net.system,text:`N i PE są połączone (np. przy ${label(nOnPE)}). W układzie ${net.system} rozdzielnica nie powinna łączyć N z PE.`});else issues.push({severity:'warn',device:dev,title:'Połączenie N z PE – sprawdź układ sieci',text:`N i PE są połączone (np. przy ${label(nOnPE)}). Dopuszczalne tylko w punkcie rozdziału PEN w układzie TN-C-S.`})}
  // RCD groups: analyse the graph with every residual-current device opened
  const rcds=s.components.filter(c=>RCD_TYPES.includes(c.type));
  const noRcdEdges=E.filter(e=>!(e.kind==='device'&&RCD_TYPES.includes(e.type)));
@@ -80,6 +88,8 @@ function analyze(s){
   for(const p of ports(r).filter(p=>p.side==='t')){const t=key(r.id,p.key),b=key(r.id,'b'+p.i);if(sameComp(compNo,t,b))issues.push({severity:'error',device:r.id,title:'Obejście '+TYPES[r.type].short+' '+r.label,text:`Zacisk ${p.role} przed i za ${r.label} jest połączony inną drogą. Prąd ominie wyłącznik różnicowoprądowy.`})}
  }
  for(let i=0;i<rcds.length;i++)for(let j=i+1;j<rcds.length;j++){const a=portOf(rcds[i],'b','N'),b=portOf(rcds[j],'b','N');if(a&&b&&sameComp(compNo,a,b))issues.push({severity:'error',device:rcds[j].id,title:'Wspólny N dla dwóch grup RCD',text:`Przewody N za ${rcds[i].label} i za ${rcds[j].label} są połączone. Każda grupa RCD potrzebuje własnego N, inaczej wyłączniki będą wyzwalać bez usterki.`})}
+ const peNodes=[...compNo.keys()].filter(n=>!n.startsWith('bb:')&&roleOf(n)==='PE');
+ for(const r of rcds){const bn=portOf(r,'b','N');if(bn&&peNodes.some(pn=>sameComp(compNo,pn,bn)))issues.push({severity:'error',device:r.id,title:'N połączony z PE za '+r.label,text:`Przewód N za ${r.label} łączy się z PE. Prąd wróci przez PE i RCD zadziała; rozdział PEN może być tylko przed RCD.`})}
  const rcdsReaching=(node,phase)=>rcds.filter(r=>{const own=E.filter(e=>e.kind==='device'&&e.device===r.id);return supply(noRcdEdges.concat(own)).get(node)?.has(phase)&&!noRcd.get(node)?.has(phase)}).map(r=>r.id);
 
  // Circuits

@@ -1,5 +1,5 @@
 const assert=require('node:assert/strict');
-const {TYPES,parse}=require('./dist/model.js');
+const {TYPES,parse,validate}=require('./dist/model.js');
 const {analyze,busbarLinks}=require('./dist/topology.js');
 const dev=(id,type,row,slot,on=true)=>({id,type,row,slot,label:id,rating:TYPES[type].rating,on});
 let n=0;const wire=(a,ap,b,bp,role='L1')=>({id:'w'+(++n),a:{device:a,port:ap},b:{device:b,port:bp},role,gauge:2.5});
@@ -79,6 +79,38 @@ assert.deepEqual(errors(r),[],'GSU bonded to PE bar is fine');
 s.wires.push(wire('RCD1','b0','GSU1','b3','PE'));r=analyze(s);
 assert.ok(errors(r).some(i=>i.title==='PE pod napięciem w modelu'),'live conductor on GSU detected through its internal bar');
 assert.equal(parse({...board(),components:[...board().components,dev('GSU1','GSU',3,0)]}).components.at(-1).type,'GSU');
+
+// Network parameters: unknown values are reported as missing data
+r=analyze(board());
+assert.ok(r.issues.some(i=>i.title==='Brak danych: liczba faz zasilania'));
+assert.ok(r.issues.some(i=>i.title==='Brak danych: układ sieci'));
+s={...board(),network:{system:'TN-S',supply:'3F',mainFuse:'C25'}};r=analyze(s);
+assert.ok(!r.issues.some(i=>i.title.startsWith('Brak danych: liczba')||i.title.startsWith('Brak danych: układ')),'known network removes missing-data notes');
+
+// 1-phase supply: only L1 and N are live, circuits on L2/L3 lose supply
+s={...board(),network:{system:'TN-C-S',supply:'1F'}};r=analyze(s);
+assert.equal(r.circuits.find(c=>c.id==='c1').phase,'L1');
+assert.equal(r.circuits.find(c=>c.id==='c2').status,'unpowered','L2 dead on 1-phase supply');
+assert.ok(r.issues.some(i=>i.title==='Zasilanie 1-fazowe'));
+
+// 1P+N main switch feeds L1
+s={version:1,name:'1F',rows:2,modules:12,network:{system:'TN-S',supply:'1F'},components:[dev('Q','MAIN2',0,0),dev('F','MCB',0,3)],wires:[wire('Q','b0','F','t0','L')],circuits:[{id:'c',name:'Gniazda',device:'F',power:1000,cable:'3x2,5'}]};
+r=analyze(s);assert.equal(r.circuits[0].phase,'L1','MAIN2 L terminal is the L1 source');assert.equal(r.balance.L1,1000);
+
+// PEN split: N joined to PE before the RCD
+const pen=sys=>{const b=board();b.network={system:sys,supply:'3F'};b.wires.push(wire('N0','b0','PE','b0','PEN'));return analyze(b)};
+r=pen('TN-C-S');assert.deepEqual(errors(r),[],'PEN split in TN-C-S is not an error');assert.ok(r.issues.some(i=>i.title==='Rozdział PEN w rozdzielnicy (TN-C-S)'));
+r=pen('TN-S');assert.ok(errors(r).some(i=>i.title==='Połączenie N z PE w układzie TN-S'));
+r=pen('TT');assert.ok(errors(r).some(i=>i.title==='Połączenie N z PE w układzie TT'));
+r=pen('');assert.ok(r.issues.some(i=>i.severity==='warn'&&i.title==='Połączenie N z PE – sprawdź układ sieci'));
+// N joined to PE behind an RCD is always wrong
+s=board();s.network={system:'TN-C-S',supply:'3F'};s.wires.push(wire('N1','b0','PE','b0','PEN'));r=analyze(s);
+assert.ok(errors(r).some(i=>i.title==='N połączony z PE za RCD1'));
+// PEN conductor between other terminal functions is rejected by the model rules
+assert.ok(validate({...board(),wires:[wire('RCD1','b0','PE','t0','PEN')]}).some(i=>i.title==='Żyła PEN poza punktem rozdziału'));
+assert.equal(validate({...board(),wires:[wire('N0','b0','PE','b0','PEN')]}).filter(i=>i.severity==='error').length,0,'PEN between N and PE is a valid conductor');
+assert.equal(parse({...board(),network:{system:'TN-C-S',supply:'1F',mainFuse:'25 A gG'}}).network.system,'TN-C-S');
+assert.throws(()=>parse({...board(),network:{system:'IT'}}),/sieci/);
 
 // Import validation for busbars and circuit N bar
 assert.equal(parse(board()).busbars.length,1);
