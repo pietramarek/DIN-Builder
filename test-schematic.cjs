@@ -1,6 +1,7 @@
 const assert=require('node:assert/strict');
 const {TYPES}=require('./dist/model.js');
 const {tree,svg}=require('./dist/schematic.js');
+const ML=require('./dist/multiline.js');
 const dev=(id,type,row,slot)=>({id,type,row,slot,label:id,rating:TYPES[type].rating,on:true});
 let n=0;const wire=(a,ap,b,bp,role='L1')=>({id:'w'+(++n),a:{device:a,port:ap},b:{device:b,port:bp},role,gauge:2.5});
 const board=()=>({version:1,name:'S',rows:3,modules:18,network:{system:'TN-C-S',supply:'3F',mainFuse:'3 × 25 A gG'},
@@ -28,4 +29,11 @@ const out=svg(board());
 assert.ok(out.startsWith('<svg')&&out.includes('Gniazda')&&out.includes('TN-C-S')&&out.includes('Aparaty bez połączenia'),'SVG contains circuits, network and orphan note');
 assert.ok(!svg({...board(),name:'<b>x</b>',circuits:[{id:'z',name:'<script>',device:'F1',power:1,cable:''}]}).includes('<script>'),'text is escaped');
 assert.ok(svg({version:1,name:'E',components:[],wires:[],circuits:[]}).includes('nie ma czego narysować'));
+// Multi-line schematic: every device and every wire drawn, levels follow the supply, no NaN coordinates
+{const s=board(),out=ML.svg(s),L=ML.layout(s),lv=ML.levels(s);
+ assert.ok(!/NaN|undefined/.test(out),'no broken coordinates');assert.equal((out.match(/class="ml-wire /g)||[]).length,s.wires.length,'one path per wire');
+ assert.equal((out.match(/class="ml-dev"/g)||[]).length,s.components.length,'every device drawn');
+ const mains=s.components.filter(c=>c.type==='MAIN');assert.ok(mains.every(m=>lv.get(m.id)===1),'main switch on the first level');
+ const deeper=s.components.filter(c=>['MCB','MCB2','MCB3','MCB4'].includes(c.type)&&lv.get(c.id)!=null);assert.ok(deeper.every(c=>lv.get(c.id)>1),'breakers below the main switch');
+ assert.ok([...L.box.values()].every(b=>b.x>=0&&b.y>=0&&b.x+b.w<=L.width),'boxes inside the drawing')}
 console.log('Schematic checks passed: feed tree, comb busbar, RCD grouping, orphans, loop guard, escaping.');
