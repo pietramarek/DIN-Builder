@@ -54,7 +54,7 @@ const BUSBARS={'1P':{name:'Szyna grzebieniowa 1-fazowa',short:'1P',pins:1},'3P':
 const BUSBAR_DEVICES=['MCB','MCB2','MCB3','MCB4','RCBO'];
 const CIRCUIT_DEVICES=BUSBAR_DEVICES;
 // Empty string means the value is unknown and must be reported as missing data, never assumed silently.
-const NETWORK={system:['','TN-S','TN-C-S','TT'],supply:['','3F','1F']};
+const NETWORK={system:['','TN-S','TN-C-S','TN-C','TT','IT'],supply:['','3F','1F']};
 const MAIN_TYPES=['MAIN','MAIN2'];
 // Older projects used DB2/DB4/DB5 with 4 edge terminals per pole. They move to the grid model when the wider
 // block fits in place; each old terminal maps to a distinct hole of the same pole, wires follow.

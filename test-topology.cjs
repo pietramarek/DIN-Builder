@@ -110,7 +110,7 @@ assert.ok(errors(r).some(i=>i.title==='N połączony z PE za RCD1'));
 assert.ok(validate({...board(),wires:[wire('RCD1','b0','PE','t0','PEN')]}).some(i=>i.title==='Żyła PEN poza punktem rozdziału'));
 assert.equal(validate({...board(),wires:[wire('N0','b0','PE','b0','PEN')]}).filter(i=>i.severity==='error').length,0,'PEN between N and PE is a valid conductor');
 assert.equal(parse({...board(),network:{system:'TN-C-S',supply:'1F',mainFuse:'25 A gG'}}).network.system,'TN-C-S');
-assert.throws(()=>parse({...board(),network:{system:'IT'}}),/sieci/);
+assert.throws(()=>parse({...board(),network:{system:'XYZ'}}),/sieci/);
 
 // Distribution block: terminals of the same pole are one bar, different poles stay isolated
 s={version:1,name:'BR',rows:2,modules:18,network:{system:'TN-S',supply:'3F'},components:[dev('Q','MAIN',0,0),dev('BR','DB4',0,5),dev('F','MCB',1,0),dev('G','MCB',1,1),dev('NB','NB15',1,6)],
@@ -184,6 +184,12 @@ assert.equal(parse(wlzBoard({})).components.find(c=>c.id==='W1').cores,4);
 assert.equal(parse(wlzBoard({wlz:{from:'top'}})).network.wlz.from,'top');assert.throws(()=>parse(wlzBoard({wlz:{from:'bok'}})),/sieci/);
 assert.equal(parse({...wlzBoard({}),components:wlzBoard({}).components.map(c=>c.id==='W1'?{...c,row:0}:c)}).components.find(c=>c.id==='W1').row,-1,'WLZ moved off the rail');
 assert.throws(()=>parse({...wlzBoard({}),components:wlzBoard({}).components.map(c=>c.id==='XA'?{...c,row:-1}:c)}),/zachodzą|szyn/,'only the cable uses the entry zone');
+
+// Other network systems: TN-C has no RCDs and N=PE is legitimate; IT and TT never join N with PE
+r=penx('TN-C');assert.ok(titles(r).includes('N i PE połączone (TN-C)'));assert.ok(errors(r).some(i=>i.title==='Wyłącznik różnicowoprądowy w układzie TN-C'),'RCD in TN-C');
+r=penx('IT');assert.ok(errors(r).some(i=>i.title==='Połączenie N z PE w układzie IT'));assert.ok(titles(r).includes('Układ IT – zakres kontroli'));
+assert.equal(parse({...board(),network:{system:'IT',supply:'3F'}}).network.system,'IT');
+assert.ok(titles(analyze(wlzBoard({system:'IT'}))).includes('Żyła PEN w układzie IT'));
 
 // Import validation for busbars and circuit N bar
 assert.equal(parse(board()).busbars.length,1);
