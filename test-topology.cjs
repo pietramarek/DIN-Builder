@@ -126,6 +126,27 @@ s.wires.pop();s.wires.push(wire('F','b0','BR','b2'));r=analyze(s);
 assert.ok(errors(r).some(i=>i.title.startsWith('Zwarcie')),'bridging two block poles is a short');
 assert.equal(parse({...s,circuits:[{...s.circuits[0],nBar:'NB'}]}).circuits[0].nBar,'NB','N strip accepted as circuit N bar');
 
+// Multi-pole breakers: each pole follows its own phase, power is split evenly
+const three=()=>({version:1,name:'3F',rows:2,modules:18,network:{system:'TN-S',supply:'3F'},components:[dev('Q','MAIN',0,0),dev('R','RCD',0,5),dev('P','MCB3',1,0),dev('H','MCB2',1,4)],
+ wires:[wire('Q','b0','R','t0'),wire('Q','b1','R','t1','L2'),wire('Q','b2','R','t2','L3'),wire('Q','b3','R','t3','N'),wire('R','b0','P','t0'),wire('R','b1','P','t1','L2'),wire('R','b2','P','t2','L3')],
+ busbars:[],circuits:[{id:'p',name:'Pompa ciepła',device:'P',power:6000,cable:'5 × 2,5'},{id:'h',name:'Płyta',device:'H',power:4000,cable:'4 × 2,5'}]});
+s=three();r=analyze(s);
+assert.deepEqual(r.circuits[0].phases,['L1','L2','L3'],'3P breaker sees three phases');
+assert.equal(r.circuits[0].phase,'L1+L2+L3');assert.deepEqual(r.circuits[0].rcd,['R'],'all poles behind the RCD');
+assert.equal(r.circuits[1].status,'unpowered','2P breaker without feed');
+assert.equal(r.balance.L1,2000);assert.equal(r.balance.L3,2000);
+s=three();s.wires.push(wire('R','b0','H','t0'));r=analyze(s);
+assert.equal(r.circuits[1].status,'partial','only one pole of 2P fed');assert.ok(r.issues.some(i=>i.title==='Niepełne zasilanie: Płyta'));
+s=three();s.wires.push(wire('R','b0','H','t0'),wire('R','b0','H','t1'));r=analyze(s);
+assert.ok(r.issues.some(i=>i.title==='Bieguny na tej samej fazie: Płyta'),'both poles on L1');
+// 3P comb busbar feeds each pole from its own pin
+s=three();s.wires=s.wires.filter(w=>w.b.device!=='P');s.wires.push(wire('R','b0','H','t0'),wire('R','b1','H','t1','L2'));
+s.components.push(dev('P2','MCB3',1,6));s.busbars=[{id:'SZ',type:'3P',side:'t',row:1,from:4,to:8}];
+s.wires.push(wire('R','b2','P2','t0','L3'));s.circuits.push({id:'p2',name:'Sprężarka',device:'P2',power:3000,cable:'5 × 2,5'});r=analyze(s);
+assert.deepEqual(r.circuits.find(c=>c.id==='h').phases,['L1','L2']);
+assert.deepEqual(r.circuits.find(c=>c.id==='p2').phases,['L3','L1','L2'],'3P MCB starting on pin 3 of the comb gets L3/L1/L2');
+assert.deepEqual(errors(r),[],'multi-pole comb setup has no errors: '+titles(r));
+
 // Import validation for busbars and circuit N bar
 assert.equal(parse(board()).busbars.length,1);
 assert.throws(()=>parse({...board(),busbars:[{id:'x',type:'2P',side:'t',row:0,from:0,to:1}]}),/szyna/);

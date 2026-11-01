@@ -17,7 +17,7 @@ function underBusbar(s,b){
 // Pin k of a 3P comb sits at module offset k (mod 3); the device is fed by the pin at its first module.
 function busbarLinks(s,b){
  const out=[];
- for(const c of underBusbar(s,b).inside){if(!BUSBAR_DEVICES.includes(c.type))continue;const p=ports(c).find(p=>p.side===b.side&&p.role==='L');if(!p)continue;const pin=BUSBARS[b.type].pins===3?(c.slot-b.from)%3:0;out.push({port:key(c.id,p.key),node:'bb:'+b.id+':'+pin,pin,device:c.id});}
+ for(const c of underBusbar(s,b).inside){if(!BUSBAR_DEVICES.includes(c.type))continue;for(const p of ports(c).filter(p=>p.side===b.side&&p.role==='L')){const pin=BUSBARS[b.type].pins===3?(c.slot+p.i-b.from)%3:0;out.push({port:key(c.id,p.key),node:'bb:'+b.id+':'+pin,pin,device:c.id})}}
  return out;
 }
 function edges(s){
@@ -97,12 +97,16 @@ function analyze(s){
   const d=byId.get(ci.device),row={id:ci.id,status:'unassigned',phase:null,rcd:[]};
   res.balance.total+=ci.power;
   if(!d){res.balance.unknown+=ci.power;res.circuits.push(row);continue}
-  const out=portOf(d,'b','L'),phases=[...(full.get(out)||[])].filter(l=>LIVE.includes(l));
-  if(!phases.length){row.status=d.on?'unpowered':'off';res.balance.unknown+=ci.power;if(d.on)issues.push({severity:'warn',device:d.id,title:'Obwód bez zasilania: '+ci.name,text:`${d.label} nie jest połączony z fazą wyłącznika głównego (w modelu).`})}
-  else if(phases.length>1){row.status='short';res.balance.unknown+=ci.power}
+  // Each pole of a multi-pole breaker is followed separately; power is split evenly over its phases.
+  const outs=ports(d).filter(p=>p.side==='b'&&p.role==='L').map(p=>key(d.id,p.key)),out=outs[0],per=outs.map(o=>[...(full.get(o)||[])].filter(l=>LIVE.includes(l)));
+  if(per.some(p=>p.length>1)){row.status='short';res.balance.unknown+=ci.power}
+  else if(per.every(p=>!p.length)){row.status=d.on?'unpowered':'off';res.balance.unknown+=ci.power;if(d.on)issues.push({severity:'warn',device:d.id,title:'Obwód bez zasilania: '+ci.name,text:`${d.label} nie jest połączony z fazą wyłącznika głównego (w modelu).`})}
+  else if(per.some(p=>!p.length)){row.status='partial';res.balance.unknown+=ci.power;issues.push({severity:'warn',device:d.id,title:'Niepełne zasilanie: '+ci.name,text:`Nie wszystkie bieguny ${d.label} mają napięcie (w modelu). Odbiornik wielofazowy pracowałby bez jednej fazy.`})}
   else{
-   row.status='ok';row.phase=phases[0];res.balance[row.phase]+=ci.power;res.phaseOf.set(ci.id,row.phase);
-   row.rcd=d.type==='RCBO'?[d.id]:rcdsReaching(out,row.phase);
+   const phases=per.map(p=>p[0]);
+   row.status='ok';row.phases=phases;row.phase=phases.join('+');for(const p of phases)res.balance[p]+=ci.power/phases.length;res.phaseOf.set(ci.id,row.phase);
+   if(new Set(phases).size<phases.length)issues.push({severity:'warn',device:d.id,title:'Bieguny na tej samej fazie: '+ci.name,text:`${d.label} ma kilka biegunów zasilanych z ${[...new Set(phases)].join(', ')}. Odbiornik wielofazowy wymaga różnych faz – sprawdź przewody i szynę grzebieniową.`});
+   row.rcd=d.type==='RCBO'?[d.id]:outs.map((o,i)=>rcdsReaching(o,phases[i])).reduce((a,b)=>a.filter(x=>b.includes(x)));
    if(!row.rcd.length)issues.push({severity:'warn',device:d.id,title:'Obwód bez ochrony RCD: '+ci.name,text:`Faza ${d.label} nie przechodzi przez wyłącznik różnicowoprądowy. Wiele obwodów w mieszkaniach wymaga ochrony dodatkowej RCD ≤30 mA (PN-HD 60364-4-41) – sprawdź przeznaczenie obwodu.`});
    if(d.type==='MCB'){
     const nb=ci.nBar&&byId.get(ci.nBar),nNode=nb&&key(nb.id,'t0');
@@ -120,7 +124,7 @@ function analyze(s){
 
  // Phase balance: reported as information only; there is no single normative limit for a dwelling.
  const assigned=LIVE.map(l=>res.balance[l]),max=Math.max(...assigned),min=Math.min(...assigned);
- if(assigned.filter(v=>v>0).length>1&&max>=3000&&max>2*Math.max(min,1))issues.push({severity:'info',title:'Nierównomierne obciążenie faz',text:`L1 ${res.balance.L1} W · L2 ${res.balance.L2} W · L3 ${res.balance.L3} W (moc zainstalowana z listy obwodów). Najbardziej obciążona faza ma ponad 2× więcej niż najmniej obciążona. To wskazówka projektowa, nie wymóg normy.`});
+ if(assigned.filter(v=>v>0).length>1&&max>=3000&&max>2*Math.max(min,1))issues.push({severity:'info',title:'Nierównomierne obciążenie faz',text:`L1 ${Math.round(res.balance.L1)} W · L2 ${Math.round(res.balance.L2)} W · L3 ${Math.round(res.balance.L3)} W (moc zainstalowana z listy obwodów). Najbardziej obciążona faza ma ponad 2× więcej niż najmniej obciążona. To wskazówka projektowa, nie wymóg normy.`});
  return res;
 }
 const api={edges,busbarLinks,underBusbar,analyze};

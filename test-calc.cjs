@@ -26,6 +26,15 @@ assert.ok(r.dU>3);assert.equal(r.limit,3);assert.ok(r.issues.some(i=>i.title.sta
 s.circuits[0].kind='other';r=checkCircuit(s,s.circuits[0]);
 assert.ok(r.dU<5&&!r.issues.some(i=>i.title.startsWith('Duży spadek')),'same circuit within 5 % as other use');
 
+// Multi-pole circuits: 3P uses the 400 V formula and the three-loaded-conductor table
+s={...board('B16',{power:9000,length:30,cable:'5 × 2,5',method:'C'}),components:[dev('F','MCB3','B16')]};r=checkCircuit(s,s.circuits[0]);
+assert.equal(r.poles,3);assert.equal(r.Iz,24,'Iz from tab. B.52.4');
+assert.ok(Math.abs(r.dU-100*9000*30/(56*2.5*400*400))<1e-9,'3-phase voltage drop formula');
+s={...board('B20',{power:7000,length:10,cable:'4 × 2,5',method:'C'}),components:[dev('F','MCB2','B20')]};r=checkCircuit(s,s.circuits[0]);
+assert.equal(r.poles,2);assert.ok(Math.abs(r.dU-200*3500*10/(56*2.5*230*230))<1e-9,'2P as two halves');
+s={...board('B25',{cable:'5 × 2,5',method:'C'}),components:[dev('F','MCB3','B25')]};r=checkCircuit(s,s.circuits[0]);
+assert.ok(r.issues.some(i=>i.severity==='error'&&i.text.includes('B.52.4')),'B25 > 24 A for 3P on 2.5 mm²');
+
 // Missing data stays explicit
 s=board('B16',{length:undefined,method:'',kind:''});r=checkCircuit(s,s.circuits[0]);
 assert.deepEqual(r.missing,['sposób ułożenia','długość','rodzaj obwodu']);
