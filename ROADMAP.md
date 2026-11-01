@@ -15,7 +15,9 @@ Stan na 1.11.2026. Szczegóły techniczne i zasady jakości: `AGENTS.md`.
 - Etykiety obwodów pod wyłącznikami (jak naklejki w rozdzielnicy).
 - Klik w zacisk z podłączonym przewodem trafia w zacisk; czytelny wynik kontroli (czerwony przy konfliktach, zwijane grupy informacji).
 - Lista projektów z autozapisem i statusem zapisu, duplikowanie i usuwanie, migracja starego zapisu.
-- Telefon: dopasowanie planszy przy pierwszym wejściu, przewijanie katalogu palcem (sprawdzone w ramce 390 px, nie na fizycznym telefonie).
+- Telefon: dopasowanie planszy przy pierwszym wejściu, przewijanie katalogu palcem, powiększony obszar dotyku zacisków na ekranach dotykowych (@media pointer:coarse) – sprawdzone w ramce 390 px i w automatyzacji dotykowej, nie na fizycznym telefonie.
+- Zaznaczanie wielu aparatów (Shift/Ctrl+klik) i ich grupowe przesuwanie przeciągnięciem; kopiowanie aparatów (przycisk „Kopiuj”, Ctrl+D) bez przewodów, w pierwszym wolnym miejscu.
+- Ręczna zmiana przebiegu przewodu: przeciągnięcie poziomego odcinka w górę/dół (zapis jako `wire.midY`, walidowany przy imporcie), przycisk przywracający automatyczny przebieg.
 - Wersja (commit i godzina) w lewym dolnym rogu, generowana przy budowaniu na Vercel.
 
 ### Aparatura
@@ -48,7 +50,7 @@ każda reguła ma przypadek poprawny, błędny i brak danych.
 
 Kolejność według wartości dla użytkownika:
 
-1. **Wygodniejsze rysowanie** – zaznaczanie i przesuwanie wielu aparatów, kopiowanie, ręczna zmiana przebiegu przewodu, większe pola dotyku dla zacisków na telefonie; test na fizycznym telefonie.
+1. **Wygodniejsze rysowanie – pozostało** – test na fizycznym telefonie (zaznaczanie, przesuwanie grupowe, kopiowanie, ręczny przebieg przewodu i powiększone zaciski są zrobione, ale nie zweryfikowane na prawdziwym urządzeniu dotykowym).
 2. **Schemat zgodny z normą** – symbole PN-EN 60617, tabelka rysunkowa, numeracja obwodów i aparatów; obecny schemat jest poglądowy.
 3. **Zweryfikowany katalog producentów** – parametry z kart katalogowych (szerokości, zaciski, przekroje, charakterystyki, zgodność szyn grzebieniowych) zamiast modeli umownych.
 4. **Dokładniejsze obliczenia** – współczynniki temperatury i grupowania, przewody Al i XLPE, spadek napięcia od złącza (WLZ), wybiórczość, prąd zwarciowy i impedancja pętli (wymagają danych sieci i sprawdzonych przypadków odniesienia).
