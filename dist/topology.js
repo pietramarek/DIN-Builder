@@ -26,7 +26,7 @@ function edges(s){
  for(const c of s.components){
   const ps=ports(c);
   if(TYPES[c.type].bar){const first=new Map();for(const p of ps){if(!first.has(p.role))first.set(p.role,p);else E.push({a:key(c.id,first.get(p.role).key),b:key(c.id,p.key),kind:'bar'})}if(TYPES[c.type].penBridge&&first.has('PE')&&first.has('N'))E.push({a:key(c.id,first.get('PE').key),b:key(c.id,first.get('N').key),kind:'bar'});continue;}
-  if(c.type==='SPD'||!c.on)continue; // SPD is not a series conductor; an open device breaks the path
+  if(TYPES[c.type].noThrough||!c.on)continue; // SPD and loads are not series conductors; an open device breaks the path
   for(const p of ps.filter(p=>p.side==='t')){const q=ps.find(x=>x.side==='b'&&x.i===p.i);if(q)E.push({a:key(c.id,p.key),b:key(c.id,q.key),kind:'device',device:c.id,type:c.type});}
  }
  for(const w of s.wires)E.push({a:key(w.a.device,w.a.port),b:key(w.b.device,w.b.port),kind:'wire',wire:w.id});
@@ -137,6 +137,10 @@ function analyze(s){
   res.circuits.push(row);
  }
 
+ // Modular sockets: an outlet is a final circuit and in dwellings normally needs additional RCD protection.
+ for(const g of s.components.filter(c=>TYPES[c.type].socket)){const p=portOf(g,'t','L'),ph=[...(full.get(p)||[])].filter(l=>LIVE.includes(l));
+  if(!ph.length)issues.push({severity:'warn',device:g.id,title:'Gniazdo bez zasilania: '+g.label,text:`Zacisk L ${g.label} nie jest połączony z fazą (w modelu).`});
+  else if(!rcdsReaching(p,ph[0]).length)issues.push({severity:'warn',device:g.id,title:'Gniazdo bez ochrony RCD: '+g.label,text:`${g.label} jest zasilane z ${ph[0]} z pominięciem wyłącznika różnicowoprądowego. Gniazda wymagają ochrony dodatkowej RCD ≤30 mA (PN-HD 60364-4-41, 411.3.3).`})}
  // Phase balance: reported as information only; there is no single normative limit for a dwelling.
  const assigned=LIVE.map(l=>res.balance[l]),max=Math.max(...assigned),min=Math.min(...assigned);
  if(assigned.filter(v=>v>0).length>1&&max>=3000&&max>2*Math.max(min,1))issues.push({severity:'info',title:'Nierównomierne obciążenie faz',text:`L1 ${Math.round(res.balance.L1)} W · L2 ${Math.round(res.balance.L2)} W · L3 ${Math.round(res.balance.L3)} W (moc zainstalowana z listy obwodów). Najbardziej obciążona faza ma ponad 2× więcej niż najmniej obciążona. To wskazówka projektowa, nie wymóg normy.`});

@@ -21,6 +21,17 @@ const CORES={5:['L1','L2','L3','N','PE'],4:['L1','L2','L3','PEN'],3:['L','N','PE
 // WLZ is drawn as a cable entering the enclosure below the last rail (row -1 = entry zone); `width` only spaces its cores.
 TYPES.WLZ={name:'Przewód zasilający WLZ',short:'WLZ',prefix:'W',width:3,rating:'WLZ',passive:true,entry:true,cores:'out',poles:CORES[5]};
 TYPES.ALCU={name:'Złączki przejściowe Al/Cu (bimetaliczne)',short:'Al/Cu',prefix:'X',width:4,rating:'Al → Cu',passive:true,cores:'through',poles:CORES[5]};
+// SPD and loads have no conducting path from top to bottom terminals (noThrough); meters always conduct (passive).
+TYPES.SPD.noThrough=true;TYPES.SPD.spd=true;
+TYPES.SPD12={name:'Ogranicznik przepięć T1+T2',short:'SPD T1+T2',prefix:'SPD',width:4,rating:'Typ 1+2, model ogólny',noThrough:true,spd:true,poles:['L1','L2','L3','N'],bottom:['PE']};
+TYPES.METER1={name:'Licznik energii 1-fazowy',short:'kWh 1F',prefix:'P',width:2,rating:'Licznik 1F',passive:true,meter:true,poles:['L','N']};
+TYPES.METER3={name:'Licznik energii 3-fazowy',short:'kWh 3F',prefix:'P',width:4,rating:'Licznik 3F',passive:true,meter:true,poles:['L1','L2','L3','N']};
+TYPES.KM2={name:'Stycznik modułowy 2P',short:'KM 2P',prefix:'KM',width:1,rating:'20 A, cewka 230 V',switching:true,poles:['L','N']};
+TYPES.KM4={name:'Stycznik modułowy 4P',short:'KM 4P',prefix:'KM',width:2,rating:'25 A, cewka 230 V',switching:true,poles:['L1','L2','L3','N']};
+TYPES.RB={name:'Przekaźnik bistabilny',short:'Przek. bist.',prefix:'K',width:1,rating:'16 A',switching:true,poles:['L']};
+TYPES.ZEG={name:'Zegar sterujący (programator)',short:'Zegar',prefix:'KT',width:2,rating:'16 A, styk 1 NO',switching:true,poles:['L']};
+TYPES.LMP={name:'Lampki kontrolne faz',short:'Lampki',prefix:'H',width:1,rating:'L1, L2, L3',noThrough:true,poles:['L1','L2','L3'],bottom:['N']};
+TYPES.GN={name:'Gniazdo modułowe 230 V',short:'Gniazdo',prefix:'XS',width:3,rating:'16 A',noThrough:true,socket:true,poles:['L','N','PE'],bottom:[]};
 const isNBar=t=>!!(TYPES[t]&&TYPES[t].bar&&TYPES[t].poles.every(r=>r==='N'));
 const HOLES=[7,11,15];
 

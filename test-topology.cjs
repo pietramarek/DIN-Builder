@@ -191,6 +191,13 @@ r=penx('TN-C-S');assert.ok(!titles(r).includes('Rozdział PEN za wyłącznikiem 
 {const b=wlzBoard({system:'TN-C-S'});b.components.push(dev('X1','PENX',0,12));b.wires=b.wires.filter(w=>!(w.a.device==='XA'&&w.a.port==='b3'));b.wires.push(wire('XA','b3','X1','t0','PEN'),wire('X1','t1','Q0','t3','N'),wire('X1','b0','PE','b0','PE'));const rr=analyze(b);
  assert.deepEqual(errors(rr),[],'WLZ PEN -> PE side of split block -> N to main');assert.ok(!titles(rr).includes('PEN podłączony do zacisku N'));assert.ok(titles(analyze(wlzBoard({}))).includes('PEN podłączony do zacisku N'))}
 
+// New devices: meter and contactor conduct (contactor only when closed), lamps and sockets are loads; socket needs RCD
+{const b=board();b.components.push(dev('P1','METER1',3,0),dev('K1','KM2',3,2),dev('XS1','GN',3,3),dev('H1','LMP',3,6));b.wires.push(wire('Q0','b0','P1','t0'),wire('P1','b0','K1','t0'),wire('K1','b0','XS1','t0'),wire('Q0','b0','H1','t0'),wire('Q0','b1','H1','t1','L2'),wire('Q0','b2','H1','t2','L3'));
+ let rr=analyze(b);assert.deepEqual(errors(rr),[],'lamps on three phases are not a short');assert.ok(titles(rr).includes('Gniazdo bez ochrony RCD: XS1'));
+ b.components.find(c=>c.id==='K1').on=false;rr=analyze(b);assert.ok(titles(rr).includes('Gniazdo bez zasilania: XS1'),'open contactor breaks the path');
+ b.components.find(c=>c.id==='K1').on=true;b.wires=b.wires.filter(w=>w.b.device!=='P1');b.wires.push(wire('RCD1','b0','P1','t0'));assert.ok(!titles(analyze(b)).some(t=>t.startsWith('Gniazdo')),'socket behind RCD via meter and contactor')}
+{const b=board();b.components.push(dev('S2','SPD12',3,0));b.wires.push(wire('Q0','b0','S2','t0'),wire('Q0','b1','S2','t1','L2'),wire('S2','b0','PE','b1','PE'));assert.deepEqual(errors(analyze(b)),[],'SPD T1+T2 does not bridge L to PE')}
+
 // Other network systems: TN-C has no RCDs and N=PE is legitimate; IT and TT never join N with PE
 r=penx('TN-C');assert.ok(titles(r).includes('N i PE połączone (TN-C)'));assert.ok(errors(r).some(i=>i.title==='Wyłącznik różnicowoprądowy w układzie TN-C'),'RCD in TN-C');
 r=penx('IT');assert.ok(errors(r).some(i=>i.title==='Połączenie N z PE w układzie IT'));assert.ok(titles(r).includes('Układ IT – zakres kontroli'));

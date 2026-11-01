@@ -75,6 +75,15 @@ function protocolRows(s){
  return{circuits,rcds,summary:{measured:marks.filter(v=>v!==null).length,failed:marks.filter(v=>v===false).length,total:marks.length}};
 }
 
-const api={RESERVE,U0,CURVE_K,RISO_MIN,RCD_T_MAX,normCable,materialRows,toCsv,labelSegments,breakerData,protocolRows};
+// Enclosure size: modules taken by rail devices and the smallest common enclosure with the reserve below.
+// The 20 % spare space is a practical recommendation (later extensions, heat), not a normative value.
+const SPARE=0.2,SIZES=[];for(let r=1;r<=8;r++)for(const m of [12,18,24])SIZES.push({rows:r,modules:m});SIZES.sort((a,b)=>a.rows*a.modules-b.rows*b.modules||a.rows-b.rows);
+function enclosureAdvice(s){
+ const d=dims(s),rail=s.components.filter(c=>c.row>=0),used=rail.reduce((n,c)=>n+TYPES[c.type].width,0),capacity=d.rows*d.modules,widest=Math.max(0,...rail.map(c=>TYPES[c.type].width)),need=Math.ceil(used*(1+SPARE));
+ const suggest=used?SIZES.find(z=>z.rows*z.modules>=need&&z.modules>=widest)||null:null,freePct=capacity?Math.round(100*(capacity-used)/capacity):0,issues=[];
+ if(used&&capacity-used<used*SPARE)issues.push({severity:'info',title:'Mała rezerwa miejsca w obudowie',text:`Wolne ${capacity-used} z ${capacity} modułów (${freePct}%). Zaleca się około ${Math.round(SPARE*100)}% rezerwy na rozbudowę i odprowadzanie ciepła${suggest?` – np. obudowa ${suggest.rows} × ${suggest.modules} mod.`:''}. To zalecenie praktyczne, nie wymóg normy.`});
+ return{used,capacity,freePct,need,suggest,issues};
+}
+const api={enclosureAdvice,RESERVE,U0,CURVE_K,RISO_MIN,RCD_T_MAX,normCable,materialRows,toCsv,labelSegments,breakerData,protocolRows};
 if(typeof module!=='undefined')module.exports=api;root.DINDocs=api;
 })(typeof window!=='undefined'?window:globalThis);

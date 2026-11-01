@@ -7,7 +7,7 @@
 (function(root){
 const M=root.DIN||require('./model.js'),T=root.DINTopology||require('./topology.js');
 const {TYPES,ports}=M;
-const PROTECTIVE=['MAIN','MAIN2','RCD','RCD2','MCB','MCB2','MCB3','MCB4','RCBO','SPD'];
+const PROTECTIVE=['MAIN','MAIN2','RCD','RCD2','MCB','MCB2','MCB3','MCB4','RCBO','SPD','SPD12','METER1','METER3','KM2','KM4','RB','ZEG'];
 const isLive=r=>r==='L'||/^L[123]$/.test(r);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -19,7 +19,7 @@ function tree(s){
  const parent=new Map();
  for(const d of devs){
   if(d.type==='MAIN'||d.type==='MAIN2')continue;
-  const cands=devs.filter(p=>p.id!==d.id&&p.type!=='SPD'&&[...bottom.get(p.id)].some(x=>top.get(d.id).has(x)));
+  const cands=devs.filter(p=>p.id!==d.id&&!TYPES[p.type].noThrough&&[...bottom.get(p.id)].some(x=>top.get(d.id).has(x)));
   // An RCD feeding a breaker is the closer parent than the main switch feeding both through the same conductor.
   const pick=cands.find(c=>c.type!=='MAIN'&&c.type!=='MAIN2')||cands[0];
   if(pick)parent.set(d.id,pick.id);
@@ -48,8 +48,9 @@ function polesLabel(t){const p=TYPES[t].poles||[];const live=p.filter(r=>r==='L'
 // thermal-magnetic release, and a circle for a residual-current (toroidal) sensor. SPD gets its own arrester symbol.
 function symbol(d){
  const t=d.type;
- if(t==='SPD')return'<rect x="-7" y="-13" width="14" height="24" class="sym"/><path d="M-4,-8 L4,8 M4,-8 L0,0 M-4,8 L0,0" class="sym thin"/>';
- const hasTrip=t!=='RCD'&&t!=='RCD2',hasRCD=['RCD','RCD2','RCBO'].includes(t);
+ if(TYPES[t].meter)return'<path d="M0,-16 V-11 M0,11 V16" class="sym"/><circle r="11" class="sym thin"/><text y="3" text-anchor="middle" font-size="7" font-weight="700">kWh</text>';
+ if(TYPES[t].spd)return'<rect x="-7" y="-13" width="14" height="24" class="sym"/><path d="M-4,-8 L4,8 M4,-8 L0,0 M-4,8 L0,0" class="sym thin"/>';
+ const hasTrip=!['RCD','RCD2'].includes(t)&&!TYPES[t].switching,hasRCD=['RCD','RCD2','RCBO'].includes(t);
  let g='<path d="M0,-16 V-6 L9,7" class="sym"/><path d="M9,7 V16" class="sym"/><circle cx="0" cy="-16" r="1.6" class="dot"/><circle cx="9" cy="16" r="1.6" class="dot"/>';
  if(hasTrip)g+='<rect x="12" y="-2" width="8" height="8" class="sym thin"/>';
  if(hasRCD)g+='<circle cx="2" cy="-3" r="13" class="sym thin"/>';
@@ -58,7 +59,9 @@ function symbol(d){
 const SYMBOL_GROUPS=[
  {test:t=>['RCD','RCD2','RCBO'].includes(t),key:'rcd',label:'Wyłącznik różnicowoprądowy (łącznik + czujnik toroidalny)'},
  {test:t=>['MAIN','MAIN2','MCB','MCB2','MCB3','MCB4'].includes(t),key:'mcb',label:'Wyłącznik nadprądowy / główny (łącznik + wyzwalacz termiczno-magnetyczny)'},
- {test:t=>t==='SPD',key:'spd',label:'Ogranicznik przepięć (SPD)'},
+ {test:t=>!!TYPES[t].spd,key:'spd',label:'Ogranicznik przepięć (SPD)'},
+ {test:t=>!!TYPES[t].switching,key:'sw',label:'Łącznik sterowany (stycznik, przekaźnik, zegar) – styk bez wyzwalacza'},
+ {test:t=>!!TYPES[t].meter,key:'kwh',label:'Licznik energii'},
 ];
 function svg(s){
  const t=tree(s),topo=T.analyze(s),phaseOf=new Map(topo.circuits.map(c=>[c.id,c.phase])),circuitNo=new Map(s.circuits.map((c,i)=>[c.id,i+1]));
@@ -93,7 +96,7 @@ function legend(components,footY,width){
  if(!used.length)return'';
  const x=20,y=footY+16;
  let out=`<text x="${x}" y="${y}" class="lg">Legenda symboli (schemat poglądowy wg IEC 60617-7 / PN-EN 60617-7 – zob. SCHEMATIC-SYMBOLS.md)</text>`;
- used.forEach((gr,i)=>{const ly=y+26+i*22;out+=`<g transform="translate(${x+14},${ly})">${symbol({type:gr.key==='rcd'?'RCD':gr.key==='spd'?'SPD':'MCB'})}</g><text x="${x+40}" y="${ly+4}" class="lgt">${esc(gr.label)}</text>`});
+ used.forEach((gr,i)=>{const ly=y+26+i*22;out+=`<g transform="translate(${x+14},${ly})">${symbol({type:{rcd:'RCD',spd:'SPD',sw:'KM2',kwh:'METER1'}[gr.key]||'MCB'})}</g><text x="${x+40}" y="${ly+4}" class="lgt">${esc(gr.label)}</text>`});
  return out;
 }
 // Simplified drawing title block (PN-EN ISO 7200 style fields), not a substitute for formal project documentation.
