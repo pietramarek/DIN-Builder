@@ -25,4 +25,7 @@ assert.equal(ports(c('spd','SPD',0,0)).filter(p=>p.side==='b')[0].role,'PE');
 assert.throws(()=>parse({...s,circuits:[{id:'bad"',name:'x',device:'',power:1,cable:'x'}]}),/obwód/);
 assert.throws(()=>parse({...s,circuits:[{id:'x',name:'x',device:'',power:1,cable:'x'},{id:'x',name:'y',device:'',power:1,cable:'x'}]}),/obwód/);
 assert.throws(()=>parse({...s,wires:[{...s.wires[0],id:'bad"'}]}),/połączenie/);
-console.log('18 model checks passed: collisions, terminal references, duplicates, phase/function conflicts, import schema, SPD port model.');
+const freeInfo=validate({version:1,name:'T',components:[c('m','MCB',3,0)],wires:[],circuits:[]});
+assert.ok(freeInfo.length===1&&freeInfo[0].severity==='info','free terminals are informational, not warnings');
+assert.equal(validate(s).filter(x=>x.severity==='warn').length,0,'free terminals never raise warnings');
+console.log('21 model checks passed: collisions, terminal references, duplicates, phase/function conflicts, import schema, SPD port model.');
