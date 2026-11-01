@@ -20,7 +20,23 @@ function ratedCurrent(rating){const m=String(rating||'').match(/\b[BCDKZ]\s*(\d+
 function crossSection(cable){const m=String(cable||'').match(/[x×]\s*(\d+(?:[.,]\d+)?)/i);return m?num(m[1]):null}
 const fmt=(v,d=1)=>v.toLocaleString('pl-PL',{maximumFractionDigits:d,minimumFractionDigits:d});
 
-function checkCircuit(s,c){
+function fuseAmps(text){const m=String(text||'').match(/(\d+(?:[.,]\d+)?)\s*A\b/);return m?num(m[1]):null}
+// Internal supply line (WLZ) from the meter to the board. Its voltage drop is computed from the total installed power
+// (no diversity factor; 3-phase assumes balanced phases) and added to each circuit, so limits apply from the origin.
+// Overload: gG fuses need 1.6·In ≤ 1.45·Iz (PN-HD 60364-4-43, conventional fusing current I2 = 1.6·In); otherwise In ≤ Iz.
+function wlzCheck(s){
+ const n=s.network||{},w=n.wlz||{},three=n.supply!=='1F',out={S:crossSection(w.cable),length:w.length,method:w.method||'',In:fuseAmps(n.mainFuse),gG:/\bgG\b/i.test(n.mainFuse||''),Iz:null,dU:null,issues:[]};
+ const missing=[];if(out.S==null)missing.push('przekrój przewodu (np. YKY 5 × 10)');if(!(w.length>0))missing.push('długość');if(!w.method)missing.push('sposób ułożenia');
+ if(missing.length&&s.circuits.some(c=>c.device))out.issues.push({severity:'info',title:'Brak danych: WLZ',text:'Spadek napięcia obwodów jest liczony tylko od rozdzielnicy, a obciążalność WLZ nie została sprawdzona. Uzupełnij w parametrach sieci: '+missing.join(', ')+'.'});
+ if(out.S!=null&&w.method){out.Iz=(three?IZ3:IZ)[w.method]?.[out.S]??null;
+  if(out.Iz==null)out.issues.push({severity:'info',title:'Brak danych: obciążalność WLZ',text:`Tabela w programie obejmuje przekroje 1,5–16 mm² Cu; ${fmt(out.S,1)} mm² nie jest w niej ujęty.`});
+  else if(out.In==null)out.issues.push({severity:'info',title:'Brak danych: zabezpieczenie przedlicznikowe',text:'Podaj prąd zabezpieczenia przedlicznikowego (np. 3 × 25 A gG), aby sprawdzić obciążalność WLZ.'});
+  else{const ok=out.gG?1.6*out.In<=1.45*out.Iz:out.In<=out.Iz;if(!ok)out.issues.push({severity:'error',title:'WLZ za słaba dla zabezpieczenia przedlicznikowego',text:out.gG?`1,6 × ${fmt(out.In,0)} A = ${fmt(1.6*out.In,1)} A > 1,45 × Iz = ${fmt(1.45*out.Iz,1)} A (Cu ${fmt(out.S,1)} mm², ułożenie ${w.method}, ${three?'trzy':'dwie'} żyły obciążone, 30 °C – PN-HD 60364-4-43 i 60364-5-52). Zwiększ przekrój WLZ.`:`In = ${fmt(out.In,0)} A > Iz = ${fmt(out.Iz,1)} A (Cu ${fmt(out.S,1)} mm², ułożenie ${w.method}). Zwiększ przekrój WLZ.`})}}
+ const P=s.circuits.reduce((a,c)=>a+(Number(c.power)||0),0);
+ if(out.S!=null&&w.length>0&&P>0)out.dU=three?100*P*w.length/(GAMMA_CU*out.S*UL*UL):200*P*w.length/(GAMMA_CU*out.S*UN*UN);
+ return out;
+}
+function checkCircuit(s,c,wlz){
  const dev=s.components.find(x=>x.id===c.device),r={id:c.id,In:null,S:null,Iz:null,dU:null,limit:null,missing:[],issues:[]};
  const name=c.name;
  if(!dev){r.missing.push('aparat');return r}
@@ -39,12 +55,13 @@ function checkCircuit(s,c){
  if(r.S!=null&&c.length>0&&c.power>0){
   // 3 poles: symmetrical 3-phase load at 400 V. 2 poles: two 230 V halves with N, each carrying half the power.
   r.dU=r.poles>=3?100*c.power*c.length/(GAMMA_CU*r.S*UL*UL):r.poles===2?200*(c.power/2)*c.length/(GAMMA_CU*r.S*UN*UN):200*c.power*c.length/(GAMMA_CU*r.S*UN*UN);
-  if(c.kind){r.limit=LIMIT[c.kind];if(r.dU>r.limit)r.issues.push({severity:'warn',device:dev.id,title:'Duży spadek napięcia: '+name,text:`ΔU ≈ ${fmt(r.dU,2)}% przy ${c.power} W i ${fmt(c.length,0)} m (${fmt(r.S,1)} mm² Cu). Zalecane maks. ${r.limit}% dla obwodu „${KINDS[c.kind]}” liczone od złącza (PN-HD 60364-5-52 zał. G, informacyjny) – wynik dotyczy tylko odcinka od rozdzielnicy.`})}
+  r.dUw=wlz?.dU??null;r.dUtotal=r.dU+(r.dUw||0);
+  if(c.kind){r.limit=LIMIT[c.kind];if(r.dUtotal>r.limit)r.issues.push({severity:'warn',device:dev.id,title:'Duży spadek napięcia: '+name,text:`ΔU ≈ ${fmt(r.dUtotal,2)}%${r.dUw!=null?` (obwód ${fmt(r.dU,2)}% + WLZ ${fmt(r.dUw,2)}%)`:''} przy ${c.power} W i ${fmt(c.length,0)} m (${fmt(r.S,1)} mm² Cu). Zalecane maks. ${r.limit}% dla obwodu „${KINDS[c.kind]}” liczone od złącza (PN-HD 60364-5-52 zał. G, informacyjny)${r.dUw!=null?'.':' – bez danych WLZ wynik dotyczy tylko odcinka od rozdzielnicy.'}`})}
  }
  if(r.missing.length&&!(r.missing.length===1&&r.missing[0]==='aparat'))r.issues.push({severity:'info',calcMissing:true,device:dev.id,title:'Brak danych do obliczeń: '+name,text:'Uzupełnij: '+r.missing.join(', ')+'.'});
  return r;
 }
-function analyzeCircuits(s){const results=s.circuits.map(c=>checkCircuit(s,c));return{results,issues:results.flatMap(r=>r.issues)}}
-const api={IZ3,IZ,METHODS,KINDS,LIMIT,ratedCurrent,crossSection,checkCircuit,analyzeCircuits};
+function analyzeCircuits(s){const wlz=wlzCheck(s),results=s.circuits.map(c=>checkCircuit(s,c,wlz));return{results,wlz,issues:[...wlz.issues,...results.flatMap(r=>r.issues)]}}
+const api={wlzCheck,fuseAmps,IZ3,IZ,METHODS,KINDS,LIMIT,ratedCurrent,crossSection,checkCircuit,analyzeCircuits};
 if(typeof module!=='undefined')module.exports=api;root.DINCalc=api;
 })(typeof window!=='undefined'?window:globalThis);
