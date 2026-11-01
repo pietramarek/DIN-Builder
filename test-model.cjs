@@ -1,5 +1,5 @@
 const assert=require('node:assert/strict');
-const {TYPES,ports,fits,canConnect,validate,parse}=require('./dist/model.js');
+const {TYPES,dims,ports,fits,canConnect,validate,parse}=require('./dist/model.js');
 const c=(id,type,row,slot)=>({id,type,row,slot,label:id,rating:TYPES[type].rating,on:true});
 const s={version:1,name:'Test',components:[c('q','MAIN',0,0),c('r','RCD',1,0),c('n','N',0,10),c('p','PE',0,14)],wires:[],circuits:[]};
 assert.equal(fits(s,c('new','MCB',0,0),0,3),false,'collision');
@@ -28,4 +28,15 @@ assert.throws(()=>parse({...s,wires:[{...s.wires[0],id:'bad"'}]}),/połączenie/
 const freeInfo=validate({version:1,name:'T',components:[c('m','MCB',3,0)],wires:[],circuits:[]});
 assert.ok(freeInfo.length===1&&freeInfo[0].severity==='info','free terminals are informational, not warnings');
 assert.equal(validate(s).filter(x=>x.severity==='warn').length,0,'free terminals never raise warnings');
-console.log('21 model checks passed: collisions, terminal references, duplicates, phase/function conflicts, import schema, SPD port model.');
+const small={version:1,name:'Mała',rows:2,modules:12,components:[],wires:[],circuits:[]};
+assert.equal(fits(small,c('m','MCB',0,0),1,11),true,'last module of last rail');
+assert.equal(fits(small,c('m','MCB',0,0),2,0),false,'row beyond 2-rail enclosure');
+assert.equal(fits(small,c('m','RCD',0,0),0,9),false,'4-module device past 12 modules');
+const big={...small,rows:6,modules:24};
+assert.equal(fits(big,c('m','MCB',0,0),5,23),true,'bigger enclosure accepts far slot');
+assert.deepEqual(dims({version:1}),{rows:4,modules:18},'old projects keep 4 x 18');
+assert.equal(parse(big).rows,6,'size survives import');
+assert.throws(()=>parse({...small,rows:0}),/rozmiar/);
+assert.throws(()=>parse({...small,modules:99}),/rozmiar/);
+assert.throws(()=>parse({...small,components:[c('far','MCB',3,0)]}),/zachodzą/,'device outside smaller enclosure rejected');
+console.log('31 model checks passed: collisions, terminal references, duplicates, phase/function conflicts, import schema, SPD port model.');
