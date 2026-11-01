@@ -73,6 +73,13 @@ assert.ok(errors(r).some(i=>i.title==='Nakładające się szyny'));
 s=board();s.busbars=[{id:'SZ1',type:'1P',side:'t',row:1,from:0,to:3}];r=analyze(s);
 assert.ok(errors(r).some(i=>i.title==='Aparat nie pasuje do szyny grzebieniowej'),'RCD under comb busbar');
 
+// GSU (main earthing bar) joins all its PE terminals and is checked like any protective conductor
+s=board();s.components.push(dev('GSU1','GSU',3,0));s.wires.push(wire('PE','t0','GSU1','t0','PE'));r=analyze(s);
+assert.deepEqual(errors(r),[],'GSU bonded to PE bar is fine');
+s.wires.push(wire('RCD1','b0','GSU1','b3','PE'));r=analyze(s);
+assert.ok(errors(r).some(i=>i.title==='PE pod napięciem w modelu'),'live conductor on GSU detected through its internal bar');
+assert.equal(parse({...board(),components:[...board().components,dev('GSU1','GSU',3,0)]}).components.at(-1).type,'GSU');
+
 // Import validation for busbars and circuit N bar
 assert.equal(parse(board()).busbars.length,1);
 assert.throws(()=>parse({...board(),busbars:[{id:'x',type:'2P',side:'t',row:0,from:0,to:1}]}),/szyna/);
