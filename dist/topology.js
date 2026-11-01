@@ -4,7 +4,7 @@
 (function(root){
 const M=root.DIN||require('./model.js');
 const {TYPES,BUSBARS,BUSBAR_DEVICES,MAIN_TYPES,ports}=M;
-const LIVE=['L1','L2','L3'],SOURCES=[...LIVE,'N'],RCD_TYPES=['RCD','RCBO'];
+const LIVE=['L1','L2','L3'],SOURCES=[...LIVE,'N'],RCD_TYPES=['RCD','RCD2','RCBO'];
 const key=(device,port)=>device+':'+port;
 const span=c=>[c.slot,c.slot+TYPES[c.type].width-1];
 const busbarsOf=s=>Array.isArray(s.busbars)?s.busbars:[];

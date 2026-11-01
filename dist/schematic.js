@@ -3,7 +3,7 @@
 (function(root){
 const M=root.DIN||require('./model.js'),T=root.DINTopology||require('./topology.js');
 const {TYPES,ports}=M;
-const PROTECTIVE=['MAIN','MAIN2','RCD','MCB','MCB2','MCB3','MCB4','RCBO','SPD'];
+const PROTECTIVE=['MAIN','MAIN2','RCD','RCD2','MCB','MCB2','MCB3','MCB4','RCBO','SPD'];
 const isLive=r=>r==='L'||/^L[123]$/.test(r);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -38,7 +38,7 @@ function layout(n,depth,x0,out){
  const leafSpan=n.children.length?0:own;width=Math.max(width,leafSpan,1);
  n.x=(x0+width/2)*W;n.y=depth*H;n.span=width;n.depth=depth;out.push(n);return width;
 }
-function symbol(d){const t=d.type;if(t==='MAIN'||t==='MAIN2')return'<path d="M-10,-12 L10,4 M-10,8 h20" class="sym"/>';if(t==='RCD'||t==='RCBO')return'<ellipse cx="0" cy="0" rx="12" ry="6" class="sym"/><path d="M-12,8 h24" class="sym"/>';if(t==='SPD')return'<path d="M-8,-10 v14 l8,6 l8,-6 v-14 z" class="sym"/>';return'<path d="M-8,-8 L8,8 M8,-8 L-8,8" class="sym"/>'}
+function symbol(d){const t=d.type;if(t==='MAIN'||t==='MAIN2')return'<path d="M-10,-12 L10,4 M-10,8 h20" class="sym"/>';if(t==='RCD'||t==='RCD2'||t==='RCBO')return'<ellipse cx="0" cy="0" rx="12" ry="6" class="sym"/><path d="M-12,8 h24" class="sym"/>';if(t==='SPD')return'<path d="M-8,-10 v14 l8,6 l8,-6 v-14 z" class="sym"/>';return'<path d="M-8,-8 L8,8 M8,-8 L-8,8" class="sym"/>'}
 function svg(s){
  const t=tree(s),topo=T.analyze(s),phaseOf=new Map(topo.circuits.map(c=>[c.id,c.phase]));
  const nodes=[];let x=0;const groups=[...t.roots,...t.orphans];
