@@ -15,6 +15,7 @@ const NOTES=[
  'Silniki i sprężarki (pompa ciepła, klimatyzacja): oznacz je jako „silnik / sprężarka” – kreator dobiera charakterystykę C zamiast B. To nadal nie uwzględnia prądu rozruchu ani zaleceń producenta.',
  'Przekrój: najmniejszy, dla którego In ≤ Iz przy wybranym ułożeniu (Cu, PVC, 30 °C, bez współczynników grupowania).',
  'Każdy obwód za wyłącznikiem różnicowoprądowym 30 mA; grupy RCD po maksymalnie wskazanej liczbie obwodów. Typ RCD (AC/A/F/B) z wyboru w kreatorze trafia do opisu parametrów – kreator nie sprawdza, czy to właściwy typ dla danego odbioru.',
+ 'TN-C-S: złączka rozdziału PEN w pierwszym rzędzie (PEN → mostek → N do wyłącznika głównego, PE do listwy PE). Za złączką N i PE nie mogą się ponownie łączyć.',
  'Fazy obwodów 1-fazowych dobrane tak, by wyrównać moc zainstalowaną; o fazie decyduje pin szyny grzebieniowej 3P.',
  'Tryb „RCBO”: każdy obwód 1-fazowy ma własny wyłącznik różnicowo-nadprądowy 1P+N (2 mod.) zasilany z szyny grzebieniowej; obwody 3-fazowe pozostają w grupie z RCD 4P. N każdego RCBO jest podłączony przewodem z listwy N w rzędzie. W modelu szyna ma pin co moduł – rzeczywista szyna dla aparatów 1P+N ma podziałkę dopasowaną do aparatu.',
  `Prąd znamionowy wyłącznika głównego i każdego RCD dobierany z listy ${PROT_IN.join('/')} A wg sumy prądów obwodów na najbardziej obciążonej fazie w danej grupie (bez współczynnika jednoczesności – to zawyża dobór, nie zaniża). Sprawdź go mimo to wobec zabezpieczenia przedlicznikowego i rzeczywistego obciążenia.`,
@@ -118,14 +119,15 @@ function generate(inp){
  const rcdType=three?'RCD':'RCD2',rcdW=TYPES[rcdType].width,poles=three?['L1','L2','L3']:['L'];
  const seqs=groups.map(g=>sequence(g,three));
  const stripFor=n=>n<=6?'NB7':n<=10?'NB11':'NB15';
- const need=Math.max(0,...seqs.map((sq,i)=>rcdW+sq.len+1+TYPES[stripFor(groups[i].length+1)].width),(three?4:2)+(inp.spd&&three?5:0)+TYPES.PEB15.width+1,rcboRows?2*perRow+1+TYPES[stripFor(perRow+1)].width:0);
+ const need=Math.max(0,...seqs.map((sq,i)=>rcdW+sq.len+1+TYPES[stripFor(groups[i].length+1)].width),(three?4:2)+(inp.spd&&three?5:0)+(inp.system==='TN-C-S'?3:0)+TYPES.PEB15.width+1,rcboRows?2*perRow+1+TYPES[stripFor(perRow+1)].width:0);
  const modules=Math.min(M.LIMITS.modules[1],Math.max(inp.modules||18,need));
  if(need>modules)return{errors:['Grupa nie mieści się na szynie 36 modułów – zmniejsz liczbę obwodów na RCD.']};
  // Row 1: main switch, surge protection, PE bar (and the PEN split in TN-C-S)
  const main=add(three?'MAIN':'MAIN2','Q0',0,0,mainRating+' A');
  const pe=add(circuits.length+2<=7?'PEB7':circuits.length+2<=11?'PEB11':'PEB15','PE1',0,0);pe.slot=modules-TYPES[pe.type].width;
  if(inp.spd&&three){const spd=add('SPD','SPD1',0,5);['b0','b1','b2','b3'].forEach((p,i)=>w(main,p,spd,'t'+i,['L1','L2','L3','N'][i],6));w(spd,'b0',pe,'t0','PE',6)}
- if(inp.system==='TN-C-S')w(main,three?'t3':'t1',pe,'b0','PEN',10);
+ // TN-C-S: PEN split terminal in the first row; the supply PEN reaches its N side, its PE side feeds the PE bar.
+ if(inp.system==='TN-C-S'){const px=add('PENX','X1',0,(three?4:2)+(inp.spd&&three?5:0)+1);w(main,three?'t3':'t1',px,'t1','N',10);w(px,'b0',pe,'b0','PE',10)}
  groups.forEach((g,gi)=>{
   const row=gi+1,sq=seqs[gi],rcd=add(rcdType,'RCD'+(gi+1),row,0,`${rcdRatings[gi]} A / 30 mA${inp.rcdType?' / typ '+inp.rcdType:''}`);
   (three?['b0','b1','b2','b3']:['b0','b1']).forEach((p,i)=>w(main,p,rcd,'t'+i,three?['L1','L2','L3','N'][i]:['L','N'][i]));

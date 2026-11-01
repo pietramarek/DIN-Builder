@@ -32,6 +32,7 @@ assert.equal(r.groups,2,'12 circuits / 6 per RCD');
 for(const row of [1,2]){const slots=s.components.filter(c=>c.row===row&&c.type.startsWith('MCB')).flatMap(c=>Array.from({length:c.type==='MCB3'?3:1},(_,k)=>c.slot+k)).sort((a,b)=>a-b);assert.equal(slots.at(-1)-slots[0]+1,slots.length,`row ${row+1}: breakers without gaps`)}
 assert.equal(s.modules,18,'fits the default 18-module rails');
 assert.ok(t.issues.some(i=>i.title==='Rozdział PEN w rozdzielnicy (TN-C-S)'),'PEN split drawn for TN-C-S');
+assert.equal(s.components.filter(c=>c.type==='PENX').length,1,'PEN split terminal used in TN-C-S');
 assert.ok(!t.issues.some(i=>i.title.startsWith('Brak danych: listwa N')),'every 1P circuit has its N strip');
 const tr=tree(s);assert.equal(tr.roots[0].children.filter(k=>k.device.type==='RCD').length,2,'schematic: two RCD groups under main');
 assert.equal(tr.orphans.length,0);

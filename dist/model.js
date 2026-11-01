@@ -13,6 +13,8 @@ for(const t of ['DB2','DB4','DB5'])TYPES[t].catalog=false;
 const GRID_POLES={2:['L','N'],4:['L1','L2','L3','N'],5:['L1','L2','L3','N','PE']},GRID_WIDTH={7:4,11:6,15:8};
 for(const P of [2,4,5])for(const h of [7,11,15])TYPES[`DB${P}_${h}`]={name:`Blok rozdzielczy ${P}P (${GRID_POLES[P].join(', ')})`,short:`BR ${P}×${h}`,prefix:'BR',width:GRID_WIDTH[h],rating:`${P} × ${h} otworów`,family:'DB'+P,size:h,bar:true,catalog:(P===2&&h===7)||(P>2&&h===11),grid:{poles:GRID_POLES[P],holes:h},poles:GRID_POLES[P]};
 for(const t of ['N','PE','GSU'])TYPES[t].bar=true;
+// PEN split terminal: PE terminals (PEN in, PE out) bridged to the N terminals – the TN-C-S split point.
+TYPES.PENX={name:'Złączka rozdziału PEN',short:'PEN',prefix:'X',width:2,rating:'Rozdział PEN',bar:true,penBridge:true,poles:['PE','N'],bottom:['PE','N']};
 const isNBar=t=>!!(TYPES[t]&&TYPES[t].bar&&TYPES[t].poles.every(r=>r==='N'));
 const HOLES=[7,11,15];
 

@@ -164,6 +164,11 @@ assert.deepEqual(errors(analyze(m)),[]);
 const crowded={...legacy,components:[...legacy.components,dev('X','MCB',0,10)]};
 m=parse(crowded);assert.equal(m.components[1].type,'DB5','kept old model when the wider block does not fit');
 
+// PEN split terminal: bridge joins N and PE; judged by the network system
+const penx=sys=>{const b=board();b.network={system:sys,supply:'3F'};b.components.push(dev('X1','PENX',0,12));b.wires.push(wire('Q0','t3','X1','t1','N'),wire('X1','b0','PE','b0','PE'));return analyze(b)};
+r=penx('TN-C-S');assert.deepEqual(errors(r),[],'PEN split terminal in TN-C-S');assert.ok(r.issues.some(i=>i.title==='Rozdział PEN w rozdzielnicy (TN-C-S)'));
+r=penx('TN-S');assert.ok(errors(r).some(i=>i.title==='Połączenie N z PE w układzie TN-S'),'bridge in TN-S is an error');
+
 // Import validation for busbars and circuit N bar
 assert.equal(parse(board()).busbars.length,1);
 assert.throws(()=>parse({...board(),busbars:[{id:'x',type:'2P',side:'t',row:0,from:0,to:1}]}),/szyna/);
