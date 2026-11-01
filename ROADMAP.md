@@ -37,7 +37,7 @@ Stan na 1.11.2026. Szczegóły techniczne i zasady jakości: `AGENTS.md`.
 
 ### Dokumentacja
 - Arkusz A4 do druku/PDF: rysunek, schemat jednokreskowy, obwody z fazą/RCD/obliczeniami, bilans faz, zestawienie materiałów, lista połączeń, wynik kontroli.
-- Schemat jednokreskowy (`schematic.js`) generowany z połączeń – przycisk „Schemat”.
+- Schemat jednokreskowy (`schematic.js`) generowany z połączeń – przycisk „Schemat”. Symbole aparatów nawiązujące do rodziny IEC 60617-7 / PN-EN 60617-7 (łącznik, wyzwalacz nadprądowy, czujnik różnicowoprądowy, SPD) – dokładna treść graficzna normy jest płatna i nie była weryfikowana, zob. `SCHEMATIC-SYMBOLS.md`. Numeracja aparatów (kolejność czytania) i obwodów (zgodna z listą obwodów), legenda użytych symboli, uproszczona tabelka rysunkowa (projekt, treść, data, układ/zasilanie).
 
 ### Kreator (`wizard.js`)
 - Rozdzielnica z listy obwodów: dobór wyłączników i przekrojów, grupy RCD, wyrównanie faz przy ciągłych rzędach pod szyną 3P, listwy N/PE, SPD, rozdział PEN, wszystkie przewody. Wynik jako nowy projekt, bez błędów kontroli.
@@ -51,7 +51,7 @@ każda reguła ma przypadek poprawny, błędny i brak danych.
 Kolejność według wartości dla użytkownika:
 
 1. **Wygodniejsze rysowanie – pozostało** – test na fizycznym telefonie (zaznaczanie, przesuwanie grupowe, kopiowanie, ręczny przebieg przewodu i powiększone zaciski są zrobione, ale nie zweryfikowane na prawdziwym urządzeniu dotykowym).
-2. **Schemat zgodny z normą** – symbole PN-EN 60617, tabelka rysunkowa, numeracja obwodów i aparatów; obecny schemat jest poglądowy.
+2. ~~**Schemat zgodny z normą**~~ – zrobione w zakresie: symbole nawiązujące do IEC 60617-7 / PN-EN 60617-7, numeracja obwodów i aparatów, legenda, tabelka rysunkowa (zob. sekcja „Zrobione” i `SCHEMATIC-SYMBOLS.md`). **Pozostaje**: zakup i porównanie z pełną treścią graficzną normy (płatna, niedostępna przy tej zmianie) – schemat pozostaje poglądowy do czasu tej weryfikacji.
 3. **Zweryfikowany katalog producentów** – parametry z kart katalogowych (szerokości, zaciski, przekroje, charakterystyki, zgodność szyn grzebieniowych) zamiast modeli umownych.
 4. **Dokładniejsze obliczenia** – współczynniki temperatury i grupowania, przewody Al i XLPE, spadek napięcia od złącza (WLZ), wybiórczość, prąd zwarciowy i impedancja pętli (wymagają danych sieci i sprawdzonych przypadków odniesienia).
 5. **Kreator – rozszerzenia** – charakterystyka C dla silników, RCD typu A/F/B, RCBO zamiast grup, limity prądu RCD i wyłącznika głównego wobec obciążenia, zapamiętane szablony obwodów.
