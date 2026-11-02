@@ -167,14 +167,14 @@ function connect(end){if(!pending){pending=end;hint();renderBoard();return}if(pe
 // Wire routing: leave every terminal in its natural direction (top terminals up, bottom terminals down; cable cores away
 // from the cable). If the horizontal run lies on the other side, go around the device at its nearer edge instead of
 // crossing it. midY (manual drag) still sets the horizontal run.
-const EXIT=16;
+const EXIT=22;
 function endInfo(end){const c=state.components.find(x=>x.id===end.device),p=getPort(state,end),pos=coord(end),t=TYPES[c.type];
  const dir=p.side==='b'?1:(t.entry||t.boxEntry)?((t.entry&&entryTop())||(t.wlzOut&&mbWlzTop())?1:-1):-1;
  const x0=devLeft(c),x1=x0+t.width*40-4;return{...pos,dir,x0,x1}}
-// Parallel runs are spread in lanes 7 px apart so neighbouring wires do not lie on top of each other.
-function defaultMid(a,b,i){const ea=a.y+a.dir*EXIT,eb=b.y+b.dir*EXIT,lane=(i%5)*7;return a.dir<0&&b.dir<0?Math.min(ea,eb)-4-lane:a.dir>0&&b.dir>0?Math.max(ea,eb)+4+lane:(ea+eb)/2+lane-14}
+// Parallel runs are spread in lanes 10 px apart so neighbouring wires do not lie on top of each other.
+function defaultMid(a,b,i){const ea=a.y+a.dir*EXIT,eb=b.y+b.dir*EXIT,lane=(i%6)*10;return a.dir<0&&b.dir<0?Math.min(ea,eb)-6-lane:a.dir>0&&b.dir>0?Math.max(ea,eb)+6+lane:(ea+eb)/2+lane-25}
 function wirePath(w,i){const a=endInfo(w.a),b=endInfo(w.b),mid=w.midY??defaultMid(a,b,i),ea=a.y+a.dir*EXIT,eb=b.y+b.dir*EXIT;
- const gap=12+(i%4)*6,side=(p,toX)=>toX<(p.x0+p.x1)/2?p.x0-gap:p.x1+gap,detA=(mid-ea)*a.dir<0,detB=(mid-eb)*b.dir<0;
+ const gap=18+(i%5)*10,side=(p,toX)=>toX<(p.x0+p.x1)/2?p.x0-gap:p.x1+gap,detA=(mid-ea)*a.dir<0,detB=(mid-eb)*b.dir<0;
  let d=`M ${a.x} ${a.y} V ${ea}`;if(detA)d+=` H ${side(a,b.x)}`;d+=` V ${mid}`;
  if(detB){const xb=side(b,a.x);d+=` H ${xb} V ${eb} H ${b.x}`}else d+=` H ${b.x} V ${eb}`;
  return{d:d+` V ${b.y}`,mid}}
