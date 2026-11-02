@@ -164,6 +164,19 @@ $('components').addEventListener('click',e=>{
 });
 $('board').addEventListener('click',e=>{if(Date.now()<suppressClickUntil)return;if(e.target.closest('.device,.terminal,[data-wire],.combbar,.bustag,.railbtn'))return;if(multi.size||selected){multi.clear();selected=null;render()}});
 function connect(end){if(!pending){pending=end;hint();renderBoard();return}if(pending.device===end.device&&pending.port===end.port){pending=null;render();return}const error=canConnect(state,pending,end);if(error){toast(error);return}const a={...pending},roles=[getPort(state,a).role,getPort(state,end).role],role=roles.includes('PEN')?'PEN':roles[0],big=[a,end].some(e=>TYPES[state.components.find(c=>c.id===e.device).type].cores),S=DINCalc.crossSection(state.network?.wlz?.cable||'');change(()=>{const w={id:uid(),a,b:end,role,gauge:big?(DIN.WIRE_GAUGES.includes(S)?S:16):2.5};state.wires.push(w);selected={kind:'wire',id:w.id};pending=null});}
+// Wire routing: leave every terminal in its natural direction (top terminals up, bottom terminals down; cable cores away
+// from the cable). If the horizontal run lies on the other side, go around the device at its nearer edge instead of
+// crossing it. midY (manual drag) still sets the horizontal run.
+const EXIT=12;
+function endInfo(end){const c=state.components.find(x=>x.id===end.device),p=getPort(state,end),pos=coord(end),t=TYPES[c.type];
+ const dir=p.side==='b'?1:(t.entry||t.boxEntry)?((t.entry&&entryTop())||(t.wlzOut&&mbWlzTop())?1:-1):-1;
+ const x0=devLeft(c),x1=x0+t.width*40-4;return{...pos,dir,x0,x1}}
+function defaultMid(a,b,i){const ea=a.y+a.dir*EXIT,eb=b.y+b.dir*EXIT,off=(i%4)*6;return a.dir<0&&b.dir<0?Math.min(ea,eb)-off:a.dir>0&&b.dir>0?Math.max(ea,eb)+off:(ea+eb)/2+off}
+function wirePath(w,i){const a=endInfo(w.a),b=endInfo(w.b),mid=w.midY??defaultMid(a,b,i),ea=a.y+a.dir*EXIT,eb=b.y+b.dir*EXIT;
+ const side=(p,toX)=>toX<(p.x0+p.x1)/2?p.x0-8:p.x1+8,detA=(mid-ea)*a.dir<0,detB=(mid-eb)*b.dir<0;
+ let d=`M ${a.x} ${a.y} V ${ea}`;if(detA)d+=` H ${side(a,b.x)}`;d+=` V ${mid}`;
+ if(detB){const xb=side(b,a.x);d+=` H ${xb} V ${eb} H ${b.x}`}else d+=` H ${b.x} V ${eb}`;
+ return{d:d+` V ${b.y}`,mid}}
 function coord(end){const c=state.components.find(c=>c.id===end.device),p=getPort(state,end),q=portPos(c,p);return{x:devLeft(c)+q.x,y:devTop(c)+q.y}}
 // Cable entry zone under the last rail: the WLZ sheath comes in from the bottom edge, cores fan out to their ends.
 // Meter cabinet next to the board (left or right): MBW = its width, OX = x origin of the board rails, MX = of the cabinet.
@@ -210,7 +223,7 @@ labelCircuits();$('wires').style.display=showWires?'block':'none';const wname=e=
  let d;if(up&&top)d=`M ${ax} ${ay} V 8 H ${bxx} V ${by}`;else if(!up&&!top)d=`M ${ax} ${ay} V ${Math.max(ay,by)+16} H ${bxx} V ${by}`;else if(up)d=`M ${ax} ${ay} V 8 H ${side} V ${H-10} H ${bxx} V ${by}`;else d=`M ${ax} ${ay} V ${H-10} H ${side} V 8 H ${bxx} V ${by}`;
  return`<path class="wlzrun" d="${d}"/>`})();
 
-$('wires').innerHTML=wlzCable+state.wires.map((w,i)=>[w,i]).sort((x,y)=>(x[0].id===sel)-(y[0].id===sel)).map(([w,i])=>{const a=coord(w.a),b=coord(w.b),mid=w.midY??((a.y+b.y)/2+(i%4)*6);const d=`M ${a.x} ${a.y} V ${mid} H ${b.x} V ${b.y}`;return `<path class="wire-hit" data-wire="${w.id}" d="${d}"><title>${esc(w.role)} ${String(w.gauge).replace('.',',')} mm² · ${esc(wname(w.a))} → ${esc(wname(w.b))}</title></path><path class="wire ${selected?.kind==='wire'&&selected.id===w.id?'selected':''}" data-wire="${w.id}" d="${d}" stroke="${colors[w.role]}" ${w.role==='PE'?'stroke-dasharray="9 3"':w.role==='PEN'?'stroke-dasharray="3 2"':''}/>`}).join('');
+$('wires').innerHTML=wlzCable+state.wires.map((w,i)=>[w,i]).sort((x,y)=>(x[0].id===sel)-(y[0].id===sel)).map(([w,i])=>{const{d}=wirePath(w,i);return `<path class="wire-hit" data-wire="${w.id}" d="${d}"><title>${esc(w.role)} ${String(w.gauge).replace('.',',')} mm² · ${esc(wname(w.a))} → ${esc(wname(w.b))}</title></path><path class="wire ${selected?.kind==='wire'&&selected.id===w.id?'selected':''}" data-wire="${w.id}" d="${d}" stroke="${colors[w.role]}" ${w.role==='PE'?'stroke-dasharray="9 3"':w.role==='PEN'?'stroke-dasharray="3 2"':''}/>`}).join('');
 }
 // Wires are drawn above devices, so their wide hit area covers the terminal they end on; a terminal under the pointer wins.
 $('wires').addEventListener('click',e=>{const term=document.elementsFromPoint(e.clientX,e.clientY).find(el=>el.classList?.contains('terminal'));if(term){const d=term.closest('.device');if(d){connect({device:d.dataset.id,port:term.dataset.port});return}}const ids=[...new Set(document.elementsFromPoint(e.clientX,e.clientY).map(el=>el.dataset?.wire).filter(Boolean))];if(!ids.length)return;
@@ -222,8 +235,8 @@ $('wires').addEventListener('pointerdown',e=>{
  if(document.elementsFromPoint(e.clientX,e.clientY).find(el=>el.classList?.contains('terminal')))return;
  const path=e.target.closest('[data-wire]');if(!path)return;
  const w=state.wires.find(w=>w.id===path.dataset.wire);if(!w)return;
- const a=coord(w.a),b=coord(w.b),idx=state.wires.indexOf(w);
- wireDrag={id:w.id,pointerId:e.pointerId,startY:e.clientY,startMid:w.midY??((a.y+b.y)/2+(idx%4)*6),moved:false};
+ const idx=state.wires.indexOf(w);
+ wireDrag={id:w.id,pointerId:e.pointerId,startY:e.clientY,startMid:wirePath(w,idx).mid,moved:false};
  e.target.setPointerCapture(e.pointerId);
 });
 document.addEventListener('pointermove',e=>{
