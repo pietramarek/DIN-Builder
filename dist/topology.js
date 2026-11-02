@@ -26,6 +26,7 @@ function edges(s){
  for(const c of s.components){
   const ps=ports(c);
   if(TYPES[c.type].bar){const first=new Map();for(const p of ps){if(!first.has(p.role))first.set(p.role,p);else E.push({a:key(c.id,first.get(p.role).key),b:key(c.id,p.key),kind:'bar'})}if(TYPES[c.type].penBridge&&first.has('PE')&&first.has('N'))E.push({a:key(c.id,first.get('PE').key),b:key(c.id,first.get('N').key),kind:'bar'});continue;}
+  if(TYPES[c.type].meterBottom){for(let k=0;k+1<ps.length;k+=2)E.push({a:key(c.id,ps[k].key),b:key(c.id,ps[k+1].key),kind:'device',device:c.id,type:c.type});continue;}
   if(TYPES[c.type].changeover){const pos=c.pos||0;if(pos)for(const p of ps.filter(p=>p.side==='t')){const q=ps.find(x=>x.side==='b'&&x.i===2*p.i+pos-1);if(q)E.push({a:key(c.id,p.key),b:key(c.id,q.key),kind:'device',device:c.id,type:c.type})}continue;}
   if(TYPES[c.type].noThrough||!c.on)continue; // SPD and loads are not series conductors; an open device breaks the path
   for(const p of ps.filter(p=>p.side==='t')){const q=ps.find(x=>x.side==='b'&&x.i===p.i);if(q)E.push({a:key(c.id,p.key),b:key(c.id,q.key),kind:'device',device:c.id,type:c.type});}

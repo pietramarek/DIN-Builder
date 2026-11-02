@@ -76,3 +76,5 @@ body[data-names="short"] .nm-long,body:not([data-names="short"]) .nm-short{displ
 body.wires-under #wires{z-index:2}body.wires-under .device{z-index:3}body.wires-under .wire{opacity:.75}#wiresUnder.active{background:#e3f3f1;border-color:var(--teal);color:#035f5c}
 
 #termOverlay{position:absolute;inset:0;z-index:6;pointer-events:none}.tov{position:absolute;width:18px;height:18px;margin:-9px 0 0 -9px;padding:0;min-width:0;border-radius:50%;border:2px solid transparent;background:transparent;pointer-events:auto;cursor:crosshair}.tov:hover{border-color:#00877d;background:#5fd3c640;box-shadow:0 0 0 3px #ffffffb0}.tov.pending{border-color:#00877d;background:#5fd3c680}@media (pointer:coarse){.tov{width:26px;height:26px;margin:-13px 0 0 -13px}}
+
+.device[data-type="OSD3"]{background:linear-gradient(#2a3136 0 76%,#3a4247 76% 100%)}.device[data-type="OSD3"] .terminal.bottom{bottom:8px}.device[data-type="OSD3"] .terminal span{left:-4px;top:13px;color:#d7e3e6;font-size:6px;margin:0}.device[data-type="OSD3"] .devrating{bottom:34px}
