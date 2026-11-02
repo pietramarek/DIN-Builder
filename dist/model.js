@@ -27,6 +27,11 @@ TYPES.GEN={name:'Drugie źródło (agregat / falownik z magazynem)',short:'Źró
 TYPES.OSD3={name:'Licznik energii OSD 3-fazowy',short:'Licznik OSD 3F',prefix:'P',width:5,rating:'Licznik OSD',passive:true,osd:true,poles:['L1','L2','L3','N']};
 TYPES.SUPPLY={name:'Przyłącze (kabel ze złącza)',short:'Przyłącze',prefix:'W',width:3,rating:'Kabel ze złącza',passive:true,boxEntry:true,ownCores:true,cores:'out',poles:CORES[4]};
 TYPES.WLZOUT={name:'Wyjście WLZ do rozdzielnicy',short:'WLZ →',prefix:'W',width:3,rating:'WLZ',passive:true,boxEntry:true,wlzOut:true,cores:'out',poles:CORES[5]};
+// Rail terminal blocks: grey = phase (L), blue = N, green-yellow = PE. 1-track: top-bottom; 2-track (two-level): two
+// independent tracks. Drawn one module wide (real blocks are 5–8 mm); the PE block's contact with the rail is not modelled.
+for(const[k,role,col]of[['ZG','L','szara (L)'],['ZN','N','niebieska (N)'],['ZP','PE','zielono-żółta (PE)']]){
+ TYPES[k+'1']={name:`Złączka szynowa ${col}, 1-torowa`,short:`Złączka ${role}`,prefix:'X',width:1,rating:'4 mm²',passive:true,terminal:role,poles:[role]};
+ TYPES[k+'2']={name:`Złączka szynowa ${col}, 2-torowa (piętrowa)`,short:`Złączka ${role} 2×`,prefix:'X',width:1,rating:'2,5 mm²',passive:true,terminal:role,poles:[role,role]}}
 TYPES.ALCU={name:'Złączki przejściowe Al/Cu (bimetaliczne)',short:'Al/Cu',prefix:'X',width:4,rating:'Al → Cu',passive:true,cores:'through',poles:CORES[5]};
 // SPD and loads have no conducting path from top to bottom terminals (noThrough); meters always conduct (passive).
 TYPES.SPD.noThrough=true;TYPES.SPD.spd=true;

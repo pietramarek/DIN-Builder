@@ -241,6 +241,11 @@ r=penx('TN-C-S');assert.ok(!titles(r).includes('Rozdział PEN za wyłącznikiem 
  b.components.find(c=>c.id==='FP').on=false;assert.equal(analyze(b).circuits.find(c=>c.id==='c1').status,'unpowered','pre-meter fuse open: board dead');
  assert.throws(()=>parse({...b,meterBox:undefined}),/szyn|zachodzą/,'cabinet devices need the cabinet')}
 
+// Rail terminal blocks pass each track top to bottom; tracks of a 2-track block stay separate
+{const b=board();b.components.push(dev('XL','ZG2',3,0),dev('XN','ZN1',3,1),dev('XP','ZP1',3,2));b.wires.push(wire('Q0','b0','XL','t0'),wire('Q0','b1','XL','t1','L2'));
+ const rr=analyze(b);assert.deepEqual(errors(rr),[],'two tracks with L1 and L2 are not a short');assert.ok(!titles(rr).some(t=>t.startsWith('Zwarcie')));
+ b.wires.push(wire('XL','b1','XN','t0','N'));assert.ok(validate(b).some(i=>i.title==='Różne funkcje zacisków'),'phase track wired to the N block')}
+
 // Other network systems: TN-C has no RCDs and N=PE is legitimate; IT and TT never join N with PE
 r=penx('TN-C');assert.ok(titles(r).includes('N i PE połączone (TN-C)'));assert.ok(errors(r).some(i=>i.title==='Wyłącznik różnicowoprądowy w układzie TN-C'),'RCD in TN-C');
 r=penx('IT');assert.ok(errors(r).some(i=>i.title==='Połączenie N z PE w układzie IT'));assert.ok(titles(r).includes('Układ IT – zakres kontroli'));
