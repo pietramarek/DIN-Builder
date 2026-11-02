@@ -206,6 +206,17 @@ r=penx('TN-C-S');assert.ok(!titles(r).includes('Rozdział PEN za wyłącznikiem 
  b.wires.push(wire('S1','b0','S1x','b1'));b.wires.pop();b.components.push(dev('N9','N',3,8));b.wires.push(wire('S1','b0','N9','t0','L1'),wire('S1','b1','N9','t1','L1'));assert.ok(errors(analyze(b)).some(i=>i.title==='Obejście przełącznika 1-0-2: S1'),'I and II joined');
  assert.throws(()=>parse({...b,components:b.components.map(c=>c.id==='S1'?{...c,pos:3}:c)}),/aparat/);assert.throws(()=>parse({...board(),components:[...board().components,{...dev('Z','MCB',3,17),pos:1}]}),/aparat/)}
 
+// Audit: N of devices with their own N pole must come from the same RCD group as the phase
+{const b=board();b.components.push(dev('F8','MCB1N',3,0));b.wires.push(wire('RCD1','b0','F8','t0','L1'),wire('RCD2','b3','F8','t1','N'));b.circuits.push({id:'c8',name:'Pokój',device:'F8',power:1000,cable:'3x2,5'});
+ assert.ok(errors(analyze(b)).some(i=>i.title==='N obwodu spoza grupy RCD: Pokój'),'MCB 1P+N with N from another RCD');
+ b.wires.pop();b.wires.push(wire('RCD1','b3','F8','t1','N'));assert.ok(!titles(analyze(b)).some(t=>t.includes('Pokój')&&t.startsWith('N obwodu')),'same group is fine');
+ b.wires.pop();b.wires.push(wire('Q0','b3','F8','t1','N'));assert.ok(errors(analyze(b)).some(i=>i.title==='N obwodu spoza grupy RCD: Pokój'),'N straight from the main switch bypasses the RCD')}
+// Audit: PE bar and SPD earth must reach a protective conductor source
+{const b=board();b.components.push(dev('G1','GSU',3,0));let rr=analyze(b);assert.ok(titles(rr).includes('Listwa PE bez połączenia z przewodem ochronnym: PE'));
+ b.wires.push(wire('G1','b0','PE','b2','PE'));rr=analyze(b);assert.ok(!titles(rr).some(t=>t.startsWith('Listwa PE bez')),'PE bar tied to GSU');
+ b.components.push(dev('S9','SPD',3,5));rr=analyze(b);assert.ok(titles(rr).includes('Ogranicznik przepięć bez połączenia z PE: S9'));
+ assert.ok(titles(analyze(board())).includes('Brak danych: źródło przewodu ochronnego'),'no PE source on the board: reported as missing data')}
+
 // Other network systems: TN-C has no RCDs and N=PE is legitimate; IT and TT never join N with PE
 r=penx('TN-C');assert.ok(titles(r).includes('N i PE połączone (TN-C)'));assert.ok(errors(r).some(i=>i.title==='Wyłącznik różnicowoprądowy w układzie TN-C'),'RCD in TN-C');
 r=penx('IT');assert.ok(errors(r).some(i=>i.title==='Połączenie N z PE w układzie IT'));assert.ok(titles(r).includes('Układ IT – zakres kontroli'));

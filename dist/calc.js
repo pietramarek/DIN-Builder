@@ -56,6 +56,7 @@ function checkCircuit(s,c,wlz){
  if(r.S!=null&&c.method){
   r.Iz=table[c.method]?.[r.S]??null;
   if(r.Iz==null)r.issues.push({severity:'info',device:dev.id,title:'Brak danych: obciążalność '+name,text:`Tabela w programie obejmuje przekroje 1,5–16 mm² Cu; ${fmt(r.S,1)} mm² nie jest w niej ujęty.`});
+  else if(r.In!=null&&M.TYPES[dev.type].fuse){const k=r.In>=16?1.6:r.In>4?1.9:2.1;if(k*r.In>1.45*r.Iz)r.issues.push({severity:'error',device:dev.id,title:'Wkładka topikowa za duża dla przewodu: '+name,text:`Dla wkładki gG prąd zadziałania I2 = ${String(k).replace('.',',')} × In = ${fmt(k*r.In,1)} A > 1,45 × Iz = ${fmt(1.45*r.Iz,1)} A (Cu ${fmt(r.S,1)} mm², ułożenie ${c.method} – PN-HD 60364-4-43, 433.1). Zmniejsz wkładkę lub zwiększ przekrój.`})}
   else if(r.In!=null&&r.In>r.Iz)r.issues.push({severity:'error',device:dev.id,title:'Zabezpieczenie za duże dla przewodu: '+name,text:`In = ${fmt(r.In,0)} A > Iz = ${fmt(r.Iz,1)} A (Cu ${fmt(r.S,1)} mm², ułożenie ${c.method}, PVC, 30 °C, bez współczynników grupowania – PN-HD 60364-5-52 ${tableRef}). Zmniejsz zabezpieczenie lub zwiększ przekrój.`});
  }
  if(r.S!=null&&c.length>0&&c.power>0){

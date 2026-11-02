@@ -55,6 +55,13 @@ assert.throws(()=>parse({...w3,network:{...w3.network,wlz:{method:'Z'}}}),/sieci
  a=analyzeCircuits(sb,{upstream:{dU:null,why:'test'}});assert.ok(a.issues.some(i=>i.title==='Brak danych: spadek napięcia do podrozdzielnicy'));assert.equal(a.results[0].dUw,null);
  assert.equal(parse(sb).feed.circuit,'c9');assert.throws(()=>parse({...sb,feed:{project:'a b'}}),/podrozdzielnicy/)}
 
+// Audit: gG fuses use I2 = 1.6 In (1.9 In below 16 A) against 1.45 Iz
+{const f=(rating,cable,method)=>({version:1,name:'F',components:[{id:'F',type:'FUSE1',row:0,slot:0,label:'F',rating,on:true}],wires:[],circuits:[{id:'c',name:'Bojler',device:'F',power:2000,cable,length:10,method,kind:'other'}]});
+ let s=f('gG 16 A','3 × 1,5','A1');let r=checkCircuit(s,s.circuits[0]);assert.ok(r.issues.some(i=>i.title.startsWith('Wkładka topikowa za duża')),'16 A gG on 1,5 mm² A1: 25,6 A > 21 A');
+ s=f('gG 16 A','3 × 2,5','C');r=checkCircuit(s,s.circuits[0]);assert.ok(!r.issues.some(i=>i.severity==='error'),'16 A gG on 2,5 mm² is fine');
+ s=f('gG 10 A','3 × 1,5','A1');r=checkCircuit(s,s.circuits[0]);assert.ok(!r.issues.some(i=>i.severity==='error'),'10 A gG on 1,5 mm² A1: 1,9 × 10 = 19 A ≤ 1,45 × 14,5 = 21 A');
+ s=f('gG 13 A','3 × 1,5','A1');r=checkCircuit(s,s.circuits[0]);assert.ok(r.issues.some(i=>i.title.startsWith('Wkładka topikowa za duża')),'13 A gG on 1,5 mm² A1: 24,7 A > 21 A although In < Iz');}
+
 // Missing data stays explicit
 s=board('B16',{length:undefined,method:'',kind:''});r=checkCircuit(s,s.circuits[0]);
 assert.deepEqual(r.missing,['sposób ułożenia','długość','rodzaj obwodu']);

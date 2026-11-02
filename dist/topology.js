@@ -128,20 +128,29 @@ function analyze(s){
    if(new Set(phases).size<phases.length)issues.push({severity:'warn',device:d.id,title:'Bieguny na tej samej fazie: '+ci.name,text:`${d.label} ma kilka biegunów zasilanych z ${[...new Set(phases)].join(', ')}. Odbiornik wielofazowy wymaga różnych faz – sprawdź przewody i szynę grzebieniową.`});
    row.rcd=d.type==='RCBO'?[d.id]:outs.map((o,i)=>rcdsReaching(o,phases[i])).reduce((a,b)=>a.filter(x=>b.includes(x)));
    if(!row.rcd.length)issues.push({severity:'warn',device:d.id,title:'Obwód bez ochrony RCD: '+ci.name,text:`Faza ${d.label} nie przechodzi przez wyłącznik różnicowoprądowy. Wiele obwodów w mieszkaniach wymaga ochrony dodatkowej RCD ≤30 mA (PN-HD 60364-4-41) – sprawdź przeznaczenie obwodu.`});
-   if(d.type==='MCB'){
-    const nb=ci.nBar&&byId.get(ci.nBar),nNode=nb&&key(nb.id,'t0');
-    if(!nb){if(row.rcd.length)issues.push({severity:'info',device:d.id,title:'Brak danych: listwa N obwodu '+ci.name,text:'Nie wskazano listwy N tego obwodu, więc nie sprawdzono, czy N wraca do tej samej grupy RCD co faza.'})}
-    else{
-     const rcdN=row.rcd.map(id=>portOf(byId.get(id),'b','N')).filter(Boolean),anyRcdN=rcds.map(r=>portOf(r,'b','N')).filter(Boolean);
-     if(!full.get(nNode)?.has('N'))issues.push({severity:'warn',device:nb.id,title:'Listwa N bez połączenia z N',text:`${nb.label} (N obwodu ${ci.name}) nie jest połączona z przewodem N zasilania.`});
-     else if(row.rcd.length&&!rcdN.some(n=>sameComp(compNo,n,nNode)))issues.push({severity:'error',device:nb.id,title:'N obwodu spoza grupy RCD: '+ci.name,text:`Faza obwodu przechodzi przez ${row.rcd.map(id=>byId.get(id).label).join(', ')}, a N wraca na ${nb.label} spoza tej grupy. RCD zadziała przy obciążeniu.`});
-     else if(!row.rcd.length&&anyRcdN.some(n=>sameComp(compNo,n,nNode)))issues.push({severity:'error',device:nb.id,title:'N obwodu za RCD, faza przed RCD: '+ci.name,text:`N wraca przez wyłącznik różnicowoprądowy, a faza go omija. RCD zadziała przy obciążeniu.`});
-    }
+   // N of the circuit must pass the same RCD group as its phase. Reference point: the device's own N pole (MCB 1P+N,
+   // 3P+N, RCBO) or, for single-pole devices, the N bar chosen in the circuit list.
+   const nPole=ports(d).find(p=>p.side==='t'&&p.role==='N'),nb=!nPole&&ci.nBar&&byId.get(ci.nBar),single=ports(d).filter(p=>p.side==='t').length===1;
+   const nNode=nPole?key(d.id,nPole.key):nb?key(nb.id,'t0'):null,nWhere=nPole?`zacisk N ${d.label}`:nb?nb.label:'';
+   if(!nNode){if(single&&row.rcd.length)issues.push({severity:'info',device:d.id,title:'Brak danych: listwa N obwodu '+ci.name,text:'Nie wskazano listwy N tego obwodu, więc nie sprawdzono, czy N wraca do tej samej grupy RCD co faza.'})}
+   else{
+    const topL=ports(d).find(p=>p.side==='t'&&p.role==='L'),up=d.type==='RCBO'?(topL?rcdsReaching(key(d.id,topL.key),phases[0]):[]):row.rcd;
+    const rcdN=up.map(id=>portOf(byId.get(id),'b','N')).filter(Boolean),anyRcdN=rcds.filter(r=>r.id!==d.id).map(r=>portOf(r,'b','N')).filter(Boolean);
+    if(!full.get(nNode)?.has('N'))issues.push({severity:'warn',device:nb?nb.id:d.id,title:nb?'Listwa N bez połączenia z N':'Brak N na zacisku N: '+ci.name,text:`${nWhere} (N obwodu ${ci.name}) nie jest połączony z przewodem N zasilania.`});
+    else if(up.length&&!rcdN.some(n=>sameComp(compNo,n,nNode)))issues.push({severity:'error',device:nb?nb.id:d.id,title:'N obwodu spoza grupy RCD: '+ci.name,text:`Faza obwodu przechodzi przez ${up.map(id=>byId.get(id).label).join(', ')}, a N (${nWhere}) przychodzi spoza tej grupy. RCD zadziała przy obciążeniu.`});
+    else if(!up.length&&anyRcdN.some(n=>sameComp(compNo,n,nNode)))issues.push({severity:'error',device:nb?nb.id:d.id,title:'N obwodu za RCD, faza przed RCD: '+ci.name,text:`N (${nWhere}) wraca przez wyłącznik różnicowoprądowy, a faza go omija. RCD zadziała przy obciążeniu.`});
    }
   }
   res.circuits.push(row);
  }
 
+ // Protective conductor: PE bars and SPD earth terminals must reach a PE source (WLZ PE/PEN core, PEN split block, GSU).
+ {const compAll=components(E),peSrc=[...s.components.filter(c=>c.type==='WLZ').flatMap(c=>ports(c).filter(p=>p.role==='PE'||p.role==='PEN').map(p=>key(c.id,p.key))),...s.components.filter(c=>c.type==='GSU'||TYPES[c.type].penBridge).flatMap(c=>ports(c).filter(p=>p.role==='PE').map(p=>key(c.id,p.key)))];
+  const peBars=s.components.filter(c=>TYPES[c.type].bar&&!TYPES[c.type].penBridge&&c.type!=='GSU'&&ports(c).every(p=>p.role==='PE')),spdPE=s.components.filter(c=>TYPES[c.type].spd).map(c=>({c,n:portOf(c,'b','PE')})).filter(x=>x.n);
+  if(!peSrc.length){if(peBars.length||spdPE.length)issues.push({severity:'info',title:'Brak danych: źródło przewodu ochronnego',text:'Na planszy nie ma WLZ z żyłą PE/PEN, złączki rozdziału PEN ani GSU, więc nie sprawdzono, czy listwy PE i ograniczniki przepięć są połączone z przewodem ochronnym.'})}
+  else{const ok=n=>peSrc.some(p=>sameComp(compAll,p,n));
+   for(const b of peBars)if(!ports(b).some(p=>ok(key(b.id,p.key))))issues.push({severity:'warn',device:b.id,title:'Listwa PE bez połączenia z przewodem ochronnym: '+b.label,text:`${b.label} nie jest połączona z żyłą PE/PEN WLZ, złączką rozdziału PEN ani GSU. Przewody ochronne obwodów nie miałyby połączenia z uziemieniem.`});
+   for(const x of spdPE)if(!ok(x.n))issues.push({severity:'warn',device:x.c.id,title:'Ogranicznik przepięć bez połączenia z PE: '+x.c.label,text:`Zacisk PE ${x.c.label} nie jest połączony z przewodem ochronnym (listwa PE / GSU). Bez tego SPD nie odprowadzi przepięć.`})}}
  // Modular sockets: an outlet is a final circuit and in dwellings normally needs additional RCD protection.
  for(const g of s.components.filter(c=>TYPES[c.type].socket)){const p=portOf(g,'t','L'),ph=[...(full.get(p)||[])].filter(l=>LIVE.includes(l));
   if(!ph.length)issues.push({severity:'warn',device:g.id,title:'Gniazdo bez zasilania: '+g.label,text:`Zacisk L ${g.label} nie jest połączony z fazą (w modelu).`});
