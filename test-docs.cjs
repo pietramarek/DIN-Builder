@@ -52,6 +52,17 @@ const full=board();full.rows=1;full.modules=18;full.components=full.components.f
 // Blanks are spare space, not used space
 {const b=board();b.components.push(dev('Z1','ZASL',1,10),dev('Z2','ZASL',1,11));assert.equal(D.enclosureAdvice(b).used,16,'blanks not counted');assert.ok(D.materialRows(b).some(r=>r.name.startsWith('Zaślepka')&&r.qty===2),'blanks listed for ordering')}
 
+// Shopping list: identical devices summed across boards, enclosure, blanks for free space, wire colours
+{const a=board(),b=board();b.name='RP';b.wires=[{id:'w1',a:{device:'Q0',port:'b0'},b:{device:'RCD1',port:'t0'},role:'L1',gauge:10},{id:'w2',a:{device:'Q0',port:'b3'},b:{device:'RCD1',port:'t3'},role:'N',gauge:10}];
+ const one=D.shoppingList([{name:'RG',s:a}]),both=D.shoppingList([{name:'RG',s:a},{name:'RP',s:b}]);
+ const f=(rows,name,params)=>rows.find(r=>r.name.startsWith(name)&&(!params||r.params===params));
+ assert.equal(f(one,'Wyłącznik nadprądowy (','B16').qty,1);assert.equal(f(both,'Wyłącznik nadprądowy (','B16').qty,2,'summed over boards');
+ assert.equal(f(both,'Obudowa').qty,2);assert.ok(f(both,'Obudowa').note.includes('RG, RP'));
+ assert.equal(f(one,'Zaślepka').qty,36-16,'free modules as optional blanks');
+ assert.equal(f(both,'Przewód jednożyłowy','10 mm², brązowy').qty,0.3);assert.ok(f(both,'Przewód jednożyłowy','10 mm², niebieski'));
+ assert.equal(f(one,'Przewód obwodów','3 × 2,5').qty,33);
+ const csv=D.shoppingCsv(one);assert.ok(csv.startsWith('\ufeffLp.;Element;Parametry;Ilość;Jm.;Uwagi'));assert.ok(!one.some(r=>r.name.startsWith('Przewód w rozdzielnicy')),'internal wires turned into metres of wire')}
+
 // Built-in templates produce boards without topology errors
 for(const t of W.TEMPLATES){const r=W.generate({name:t.name,circuits:t.circuits,modules:18,method:'C',spd:true,...t.opts});assert.ok(!r.errors,t.id+': '+(r.errors||[]).join());assert.deepEqual(analyze(r.state).issues.filter(i=>i.severity==='error'),[],t.id)}
 console.log('Document checks passed: materials with cable lengths, CSV, door labels, measurement protocol, templates.');

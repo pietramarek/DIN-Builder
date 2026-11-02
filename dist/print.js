@@ -66,8 +66,12 @@ ${(()=>{const bp=root.DINTopology.byPosition(s);if(!bp)return'';const l=a=>a.len
 <section class="psec"><h2>Wynik kontroli</h2><p>${errs.length?`Wykryto problemy: ${errs.length}.`:'Nie wykryto konfliktów w sprawdzanym zakresie.'} Sprawdzono połączenia, fazy, zwarcia w modelu, grupy RCD, In ≤ Iz (Cu, PVC, 30 °C, bez współczynników – PN-HD 60364-5-52 tab. B.52.2) i spadek napięcia obwodów (zał. G, informacyjny). Nie sprawdzono selektywności, prądów zwarciowych ani impedancji pętli.</p>${issues.length?'<ul>'+issues.map(i=>`<li class="${i.severity}"><b>${esc(i.title)}</b> – ${esc(i.text)}</li>`).join('')+'</ul>':''}</section>
 <div class="pfoot">Dokument roboczy z prototypu DIN Builder. Nie potwierdza bezpieczeństwa instalacji, doboru zabezpieczeń ani zgodności z normami. Wygląd i przykładowe nazwy aparatów są poglądowe. Projekt i pomiary wymagają weryfikacji przez osobę z uprawnieniami.</div>`;
 }
+// Shopping list sheet with a tick column.
+function shopping(title,rows){return `<div class="ph"><div><h1>Lista zakupów – ${esc(title)}</h1><p>${rows.length} pozycji · ${new Date().toLocaleDateString('pl-PL')} · ilości przewodów z zapasem 10%, przewody w rozdzielnicy szacunkowo.</p></div><div class="brand">DIN Builder</div></div>
+<section class="psec"><table class="shoptable"><thead><tr><th>✓</th><th>Lp.</th><th>Element</th><th>Parametry</th><th>Ilość</th><th>Jm.</th><th>Uwagi</th></tr></thead><tbody>${rows.map(r=>`<tr><td class="tick">☐</td><td>${r.lp}</td><td>${esc(r.name)}</td><td>${esc(r.params)}</td><td class="num">${r.qty===''?'?':String(r.qty).replace('.',',')}</td><td>${esc(r.unit)}</td><td>${esc(r.note)}</td></tr>`).join('')}</tbody></table></section>
+<div class="pfoot">Nazwy i parametry są poglądowe – producenta, serię i dokładne oznaczenia aparatów dobierz przy zamówieniu.</div>`}
 function show(html){const v=document.getElementById('printView');v.innerHTML=html;root.print()}
 function open(s){show(render(s))}
 root.addEventListener('afterprint',()=>{const v=document.getElementById('printView');if(v)v.innerHTML=''});
-root.DINPrint={render,open,labels,protocol,openLabels:s=>show(labels(s)),openProtocol:s=>show(protocol(s))};
+root.DINPrint={render,open,labels,protocol,openLabels:s=>show(labels(s)),openShopping:(title,rows)=>show(shopping(title,rows)),openProtocol:s=>show(protocol(s))};
 })(window);

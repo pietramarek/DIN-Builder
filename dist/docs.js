@@ -84,6 +84,26 @@ function enclosureAdvice(s){
  if(used&&capacity-used<used*SPARE)issues.push({severity:'info',title:'Mała rezerwa miejsca w obudowie',text:`Wolne ${capacity-used} z ${capacity} modułów (${freePct}%). Zaleca się około ${Math.round(SPARE*100)}% rezerwy na rozbudowę i odprowadzanie ciepła${suggest?` – np. obudowa ${suggest.rows} × ${suggest.modules} mod.`:''}. To zalecenie praktyczne, nie wymóg normy.`});
  return{used,capacity,freePct,need,suggest,issues};
 }
-const api={enclosureAdvice,RESERVE,U0,CURVE_K,RISO_MIN,RCD_T_MAX,normCable,materialRows,toCsv,labelSegments,breakerData,protocolRows};
+// ---------- Shopping list: identical items summed (one board or a whole project with sub-boards), enclosure and
+// optional blanks for free modules, wire colours for the internal wiring with an estimated length.
+const WIRE_COLOUR={L:'brązowy',L1:'brązowy',L2:'czarny',L3:'szary',N:'niebieski',PE:'żółto-zielony',PEN:'żółto-zielony (niebieskie końce)'},WIRE_M=0.3;
+function shoppingList(boards){
+ const map=new Map(),add=(name,params,qty,unit,note,board)=>{const k=name+'|'+params+'|'+unit;if(!map.has(k))map.set(k,{name,params,unit,qty:0,missing:false,notes:new Set(),boards:new Set()});const r=map.get(k);if(typeof qty==='number')r.qty+=qty;else r.missing=true;if(note)r.notes.add(note);r.boards.add(board)};
+ for(const{name:bn,s}of boards){
+  const d=dims(s),adv=enclosureAdvice(s),blanks=s.components.filter(c=>TYPES[c.type].blank).reduce((n,c)=>n+TYPES[c.type].width,0);
+  add('Obudowa rozdzielnicy z szynami DIN',`${d.rows} × ${d.modules} mod.`,1,'szt.',adv.suggest&&adv.suggest.rows*adv.suggest.modules>d.rows*d.modules?`zalecana co najmniej ${adv.suggest.rows} × ${adv.suggest.modules} mod.`:'',bn);
+  for(const r of materialRows(s)){
+   if(r.name==='Przewód w rozdzielnicy (linka)'){const[role,g]=r.params.split(' ');add('Przewód jednożyłowy linka (LgY / H07V-K)',`${g} mm², ${WIRE_COLOUR[role]||role}`,r.qty*WIRE_M,'m',`szacunek: ${WIRE_M.toString().replace('.',',')} m na odcinek – sprawdź wg obudowy`,bn);continue}
+   if(r.name.startsWith('Zaślepka'))continue;
+   add(r.name,r.params,r.qty===''?'':r.qty,r.unit,r.qty===''?'brak długości części obwodów – uzupełnij w tabeli obwodów':'',bn)}
+  const free=adv.capacity-adv.used;if(blanks)add('Zaślepka modułowa','1 mod.',blanks,'szt.','w projekcie',bn);
+  if(free-blanks>0)add('Zaślepka modułowa','1 mod.',free-blanks,'szt.','na wolne miejsca (opcjonalnie)',bn);
+ }
+ const multi=boards.length>1;
+ return [...map.values()].map((r,i)=>({lp:i+1,name:r.name,params:r.params,qty:r.missing&&!r.qty?'':Math.ceil(r.qty*10)/10,unit:r.unit,note:[...r.notes,multi?'rozdzielnice: '+[...r.boards].join(', '):''].filter(Boolean).join('; ')}));
+}
+function shoppingCsv(rows){const q=v=>{const t=String(v??'');return /[;"\n\r]/.test(t)?'"'+t.replace(/"/g,'""')+'"':t};
+ return '\ufeff'+[['Lp.','Element','Parametry','Ilość','Jm.','Uwagi'],...rows.map(r=>[r.lp,r.name,r.params,typeof r.qty==='number'?String(r.qty).replace('.',','):r.qty,r.unit,r.note])].map(r=>r.map(q).join(';')).join('\r\n')+'\r\n'}
+const api={shoppingList,shoppingCsv,enclosureAdvice,RESERVE,U0,CURVE_K,RISO_MIN,RCD_T_MAX,normCable,materialRows,toCsv,labelSegments,breakerData,protocolRows};
 if(typeof module!=='undefined')module.exports=api;root.DINDocs=api;
 })(typeof window!=='undefined'?window:globalThis);
