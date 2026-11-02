@@ -62,6 +62,22 @@ assert.throws(()=>parse({...w3,network:{...w3.network,wlz:{method:'Z'}}}),/sieci
  s=f('gG 10 A','3 × 1,5','A1');r=checkCircuit(s,s.circuits[0]);assert.ok(!r.issues.some(i=>i.severity==='error'),'10 A gG on 1,5 mm² A1: 1,9 × 10 = 19 A ≤ 1,45 × 14,5 = 21 A');
  s=f('gG 13 A','3 × 1,5','A1');r=checkCircuit(s,s.circuits[0]);assert.ok(r.issues.some(i=>i.title.startsWith('Wkładka topikowa za duża')),'13 A gG on 1,5 mm² A1: 24,7 A > 21 A although In < Iz');}
 
+// Predicted loop impedance: Zs0 + WLZ loop + circuit loop, compared with U0/Ia
+{const {breakerCurve}=require('./dist/calc.js');const z={version:1,name:'Z',network:{system:'TN-C-S',supply:'3F',zs0:0.4,mainFuse:'3 × 32 A gG',wlz:{cable:'YKY 5 × 10',length:20,method:'C',material:'Cu'}},components:[dev('F','MCB','B16'),dev('G','MCB','C16')],wires:[],circuits:[{id:'a',name:'Gniazda',device:'F',power:2000,cable:'3 × 2,5',length:40,method:'C',kind:'other'},{id:'b',name:'Warsztat',device:'G',power:2000,cable:'3 × 1,5',length:45,method:'C',kind:'other'}]};
+ const a=analyzeCircuits(z),ra=a.results[0],rb=a.results[1],origin=0.4+2*20/(56*10);
+ assert.ok(Math.abs(a.wlz.zsOrigin-origin)<1e-12);assert.ok(Math.abs(ra.zs-(origin+2*40/(56*2.5)))<1e-12);assert.ok(Math.abs(ra.zsMax-230/80)<1e-12);
+ assert.ok(!ra.issues.some(i=>i.title.startsWith('Przewidywana impedancja')),'B16 on 2,5 mm² × 40 m: 1,04 Ω ≤ 2,875 Ω');
+ assert.ok(rb.issues.some(i=>i.title.startsWith('Przewidywana impedancja')),'C16 on 1,5 mm² × 45 m: 1,54 Ω > 230/160 = 1,44 Ω');
+ assert.equal(breakerCurve('C16 / 30 mA').curve,'C');
+ assert.equal(analyzeCircuits({...z,network:{...z.network,system:'TT'}}).results[0].zs,null,'TT: loop impedance not used');
+ assert.equal(analyzeCircuits(z,{upstream:{dU:1,zs:0.9,In:25,label:'RG / Zasilanie'}}).results[0].zs,0.9+2*40/(56*2.5),'sub-board starts from the parent Zs')}
+// Simplified selectivity: downstream rated current must be lower than the one above
+{const z={version:1,name:'S',network:{supply:'3F',mainFuse:'3 × 20 A gG'},components:[dev('Q0','MAIN','C25'),dev('F','MCB','B20')],wires:[],circuits:[{id:'a',name:'Piekarnik',device:'F',power:3000,cable:'3 × 2,5'}]};
+ let iss=analyzeCircuits(z).issues;assert.ok(iss.some(i=>i.title==='Brak wybiórczości: Q0'),'main breaker C25 above 20 A fuse');assert.ok(!iss.some(i=>i.title==='Brak wybiórczości: Piekarnik'),'B20 under a C25 main breaker is fine');
+ z.components[0].rating='40 A';iss=analyzeCircuits(z).issues;assert.ok(!iss.some(i=>i.title.startsWith('Rozłącznik główny')),'40 A switch under 20 A fuse is fine');assert.ok(iss.some(i=>i.title==='Brak wybiórczości: Piekarnik'),'B20 vs 20 A fuse');
+ z.components[0].rating='16 A';iss=analyzeCircuits(z).issues;assert.ok(iss.some(i=>i.title==='Rozłącznik główny słabszy niż zabezpieczenie powyżej: Q0'));
+ z.components[1].rating='B16';z.components[0].rating='63 A';assert.ok(!analyzeCircuits(z).issues.some(i=>i.title.startsWith('Brak wybiórczości')),'B16 below 20 A fuse')}
+
 // Missing data stays explicit
 s=board('B16',{length:undefined,method:'',kind:''});r=checkCircuit(s,s.circuits[0]);
 assert.deepEqual(r.missing,['sposób ułożenia','długość','rodzaj obwodu']);

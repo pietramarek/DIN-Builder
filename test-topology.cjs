@@ -227,6 +227,10 @@ r=penx('TN-C-S');assert.ok(!titles(r).includes('Rozdział PEN za wyłącznikiem 
  const bp=require('./dist/topology.js').byPosition(b);assert.ok(bp[1].grid.includes('Lodówka awaryjna')&&bp[2].gen.includes('Lodówka awaryjna'));assert.ok(bp[2].grid.includes('Kuchnia'),'circuits outside the switch stay on the grid');
  b.wires.push(wire('G1','t0','Q0','b0'));assert.ok(errors(analyze(b)).some(i=>i.title==='Sieć połączona z drugim źródłem'),'generator wired straight to the grid side')}
 
+// RCD rated current vs the breakers it feeds
+{const b=board();b.components.find(c=>c.id==='RCD1').rating='25 A / 30 mA';b.components.find(c=>c.id==='F1').rating='C32';assert.ok(titles(analyze(b)).includes('RCD słabszy niż wyłącznik za nim: RCD1'));
+ b.components.find(c=>c.id==='F1').rating='B16';assert.ok(!titles(analyze(b)).some(t=>t.startsWith('RCD słabszy')))}
+
 // Other network systems: TN-C has no RCDs and N=PE is legitimate; IT and TT never join N with PE
 r=penx('TN-C');assert.ok(titles(r).includes('N i PE połączone (TN-C)'));assert.ok(errors(r).some(i=>i.title==='Wyłącznik różnicowoprądowy w układzie TN-C'),'RCD in TN-C');
 r=penx('IT');assert.ok(errors(r).some(i=>i.title==='Połączenie N z PE w układzie IT'));assert.ok(titles(r).includes('Układ IT – zakres kontroli'));

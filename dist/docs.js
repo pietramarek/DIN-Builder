@@ -66,9 +66,9 @@ function breakerData(rating){const m=String(rating||'').match(/\b([BCD])\s*(\d+(
 const idnOf=rating=>{const m=String(rating||'').match(/(\d+(?:[.,]\d+)?)\s*mA/);return m?Number(m[1].replace(',','.')):null};
 const verdict=(v,ok)=>v==null?null:ok;
 function protocolRows(s){
- const p=s.protocol||{},byId=new Map(s.components.map(c=>[c.id,c]));
+ const p=s.protocol||{},byId=new Map(s.components.map(c=>[c.id,c])),calc=root.DINCalc?new Map(root.DINCalc.analyzeCircuits(s).results.map(r=>[r.id,r])):new Map();
  const circuits=s.circuits.map((c,i)=>{const dev=byId.get(c.device),b=dev&&CIRCUIT_DEVICES.includes(dev.type)?breakerData(dev.rating):null,Ia=b?CURVE_K[b.curve]*b.In:null,zsMax=Ia?U0/Ia:null,m=p.circuits?.[c.id]||{};
-  return{id:c.id,nr:i+1,name:c.name,device:dev?dev.label:'',rating:dev?dev.rating:'',Ia,zsMax,zs:m.zs??null,riso:m.riso??null,zsOk:verdict(m.zs,zsMax!=null?m.zs<=zsMax:null),risoOk:verdict(m.riso,m.riso>=RISO_MIN)}});
+  return{id:c.id,nr:i+1,name:c.name,device:dev?dev.label:'',rating:dev?dev.rating:'',Ia,zsMax,zsPred:calc.get(c.id)?.zs??null,zs:m.zs??null,riso:m.riso??null,zsOk:verdict(m.zs,zsMax!=null?m.zs<=zsMax:null),risoOk:verdict(m.riso,m.riso>=RISO_MIN)}});
  const rcds=s.components.filter(c=>['RCD','RCD2','RCBO'].includes(c.type)).sort((a,b)=>a.row-b.row||a.slot-b.slot).map(c=>{const idn=idnOf(c.rating),m=p.rcd?.[c.id]||{};
   return{id:c.id,label:c.label,rating:c.rating,idn,t:m.t??null,i:m.i??null,tOk:verdict(m.t,m.t<=RCD_T_MAX),iOk:verdict(m.i,idn!=null?m.i>=0.5*idn&&m.i<=idn:null)}});
  const marks=[...circuits.flatMap(r=>[r.zsOk,r.risoOk]),...rcds.flatMap(r=>[r.tOk,r.iOk])];

@@ -132,6 +132,8 @@ ${PEN_SVG}
 <li><b>Obciążalność</b>: In ≤ Iz dla przewodów Cu PVC w temperaturze 30 °C (PN-HD 60364-5-52, tabele B.52.2 i B.52.4) – bez współczynników grupowania i temperatury.</li>
 <li><b>Spadek napięcia</b> od złącza: obwód + WLZ, limit 3 % dla oświetlenia i 5 % dla pozostałych (wartości informacyjne).</li>
 <li><b>Topologia</b>: zwarcia, PE pod napięciem, obejście RCD, wspólny N, N–PE poza punktem rozdziału, bilans faz.</li>
+<li><b>Impedancja pętli (przewidywana)</b>: po wpisaniu Zs w złączu program dolicza WLZ i przewody obwodów i sprawdza Zs ≤ U0/Ia (B: 5·In, C: 10·In, D: 20·In). Uproszczenie: rezystancja w ok. 20 °C, bez reaktancji – wynik do porównania z pomiarem, nie zamiast niego.</li>
+<li><b>Wybiórczość (uproszczona)</b>: ostrzeżenie, gdy zabezpieczenie niżej ma prąd znamionowy równy lub większy niż zabezpieczenie powyżej. Pełna wybiórczość wymaga tabel producenta.</li>
 <li><b>Obudowa</b>: zajęte moduły i zalecany rozmiar z ok. 20% rezerwy (zalecenie praktyczne, nie wymóg normy).</li>
 <li><b>Gniazda modułowe</b>: czy są zasilane i chronione przez RCD. Styczniki, przekaźniki i zegary przewodzą tylko, gdy są załączone (dźwignia); ich cewki nie są modelowane.</li>
 <li>Program <b>nie</b> sprawdza selektywności, prądów zwarciowych, impedancji pętli ani doboru do konkretnego producenta. To narzędzie pomocnicze – nie zastępuje projektu ani pomiarów.</li>

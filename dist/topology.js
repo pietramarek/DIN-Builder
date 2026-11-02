@@ -164,6 +164,10 @@ function analyze(s){
  for(const g of s.components.filter(c=>TYPES[c.type].socket)){const p=portOf(g,'t','L'),ph=[...(full.get(p)||[])].filter(l=>LIVE.includes(l));
   if(!ph.length)issues.push({severity:'warn',device:g.id,title:'Gniazdo bez zasilania: '+g.label,text:`Zacisk L ${g.label} nie jest połączony z fazą (w modelu).`});
   else if(!rcdsReaching(p,ph[0]).length)issues.push({severity:'warn',device:g.id,title:'Gniazdo bez ochrony RCD: '+g.label,text:`${g.label} jest zasilane z ${ph[0]} z pominięciem wyłącznika różnicowoprądowego. Gniazda wymagają ochrony dodatkowej RCD ≤30 mA (PN-HD 60364-4-41, 411.3.3).`})}
+ // RCD rated current: should not be lower than the largest overcurrent device it feeds (simple comparison).
+ {const amps=t=>{const m=String(t||'').match(/\b[BCDKZ]\s*(\d+(?:[.,]\d+)?)\b/i)||String(t||'').match(/(\d+(?:[.,]\d+)?)\s*A\b/);return m?Number(m[1].replace(',','.')):null};
+  for(const r of rcds.filter(x=>x.type!=='RCBO')){const own=amps(r.rating);if(own==null)continue;const below=res.circuits.filter(c=>c.rcd?.includes(r.id)).map(c=>byId.get(s.circuits.find(x=>x.id===c.id)?.device)).filter(Boolean),mx=Math.max(0,...below.map(d=>amps(d.rating)||0));
+   if(mx>own)issues.push({severity:'warn',device:r.id,title:'RCD słabszy niż wyłącznik za nim: '+r.label,text:`${r.label} ma ${own} A, a za nim jest wyłącznik ${mx} A. Prąd znamionowy RCD powinien być co najmniej taki jak największe zabezpieczenie za nim (lub RCD musi być chroniony przed przeciążeniem zabezpieczeniem przed nim) – sprawdź w danych producenta.`})}}
  // Phase balance: reported as information only; there is no single normative limit for a dwelling.
  const assigned=LIVE.map(l=>res.balance[l]),max=Math.max(...assigned),min=Math.min(...assigned);
  if(assigned.filter(v=>v>0).length>1&&max>=3000&&max>2*Math.max(min,1))issues.push({severity:'info',title:'Nierównomierne obciążenie faz',text:`L1 ${Math.round(res.balance.L1)} W · L2 ${Math.round(res.balance.L2)} W · L3 ${Math.round(res.balance.L3)} W (moc zainstalowana z listy obwodów). Najbardziej obciążona faza ma ponad 2× więcej niż najmniej obciążona. To wskazówka projektowa, nie wymóg normy.`});
