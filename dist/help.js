@@ -111,6 +111,14 @@ ${PEN_SVG}
 <li>Spadek napięcia obwodów podrozdzielnicy jest liczony od złącza: WLZ + obwód zasilający + obwód końcowy.</li>
 <li>Przy układzie TN-C-S podrozdzielnica dostaje układ TN-S – za punktem rozdziału PEN N i PE już się nie łączą.</li>
 </ol>`},
+{id:'meterbox',title:'Skrzynka licznikowa',html:`
+<ol>
+<li>Kliknij puste miejsce planszy i w panelu projektu wybierz <b>„＋ Dodaj skrzynkę licznikową”</b>. Pojawi się obok rozdzielnicy (położenie: po prawej lub po lewej) z licznikiem OSD 3-fazowym, przyłączem ze złącza i wyjściem WLZ.</li>
+<li>Na szynę skrzynki (9 lub 12 modułów) przeciągnij zabezpieczenie przedlicznikowe, np. rozłącznik bezpiecznikowy 3P albo wyłącznik.</li>
+<li>Połącz: przyłącze → zabezpieczenie → licznik (górne zaciski) → licznik (dolne zaciski) → wyjście WLZ. Wyjście WLZ jest połączone z przewodem WLZ wchodzącym do rozdzielnicy – dalej żyły WLZ do wyłącznika głównego.</li>
+<li>Liczbę żył przyłącza ustawiasz w jego panelu (np. 4 żyły z PEN), a WLZ – w parametrach sieci.</li>
+</ol>
+<p class="muted">Rozmieszczenie w skrzynce i typ licznika określa OSD w warunkach przyłączenia.</p>`},
 {id:'gen',title:'Agregat i przełącznik 1-0-2',html:`
 <ol>
 <li>Dodaj <b>„Drugie źródło: agregat / falownik”</b> z katalogu (Zasilanie) – rysuje się jako drugi przewód wchodzący do obudowy. Ustaw liczbę żył w jego panelu.</li>

@@ -31,6 +31,8 @@ function edges(s){
   for(const p of ps.filter(p=>p.side==='t')){const q=ps.find(x=>x.side==='b'&&x.i===p.i);if(q)E.push({a:key(c.id,p.key),b:key(c.id,q.key),kind:'device',device:c.id,type:c.type});}
  }
  for(const w of s.wires)E.push({a:key(w.a.device,w.a.port),b:key(w.b.device,w.b.port),kind:'wire',wire:w.id});
+ // WLZ out of the meter cabinet and the WLZ entry of the board are the two ends of the same cable, core by core.
+ {const wo=s.components.find(c=>TYPES[c.type].wlzOut),wz=s.components.find(c=>c.type==='WLZ');if(wo&&wz)for(const p of ports(wo)){const q=ports(wz).find(x=>x.i===p.i);if(q)E.push({a:key(wo.id,p.key),b:key(wz.id,q.key),kind:'wire',wire:'wlz'})}}
  for(const b of busbarsOf(s))for(const l of busbarLinks(s,b))E.push({a:l.port,b:l.node,kind:'busbar',busbar:b.id});
  return E;
 }
@@ -40,8 +42,8 @@ function components(E){const adj=adjacency(E),comp=new Map();let id=0;for(const 
 const sameComp=(comp,a,b)=>comp.has(a)&&comp.get(a)===comp.get(b);
 
 function analyze(s){
- const issues=[],E=edges(s),mains=s.components.filter(c=>MAIN_TYPES.includes(c.type)),wlzs=s.components.filter(c=>c.type==='WLZ'),gens=s.components.filter(c=>c.type==='GEN'),net=s.network||{},byId=new Map(s.components.map(c=>[c.id,c]));
- const res={supplied:mains.length>0||wlzs.length>0,circuits:[],balance:{L1:0,L2:0,L3:0,unknown:0,total:0},issues,phaseOf:new Map()};
+ const issues=[],E=edges(s),mains=s.components.filter(c=>MAIN_TYPES.includes(c.type)),wlzs=s.components.filter(c=>c.type==='WLZ'),gens=s.components.filter(c=>c.type==='GEN'),services=s.components.filter(c=>c.type==='SUPPLY'),net=s.network||{},byId=new Map(s.components.map(c=>[c.id,c]));
+ const res={supplied:mains.length>0||wlzs.length>0||services.length>0,circuits:[],balance:{L1:0,L2:0,L3:0,unknown:0,total:0},issues,phaseOf:new Map()};
  const roleOf=node=>{const[d,p]=node.split(':');const c=byId.get(d);return c&&ports(c).find(x=>x.key===p)?.role};
  const label=node=>{const[d,p]=node.split(':');const c=byId.get(d);const pt=c&&ports(c).find(x=>x.key===p);return c?c.label+' / '+(pt.side==='t'?'góra ':'dół ')+pt.role:node};
 
@@ -55,7 +57,7 @@ function analyze(s){
   for(const o of bb)if(o.id<b.id&&o.row===b.row&&o.side===b.side&&o.from<=b.to&&b.from<=o.to)issues.push({severity:'error',busbar:b.id,title:'Nakładające się szyny',text:`Dwie szyny po tej samej stronie rzędu ${b.row+1} zachodzą na siebie.`});
  }
 
- if(!mains.length&&!wlzs.length){
+ if(!mains.length&&!wlzs.length&&!services.length){
   issues.push({severity:'info',title:'Brak punktu zasilania – nie sprawdzono topologii',text:'Dodaj wprowadzenie WLZ albo wyłącznik główny (FR). Zaciski WLZ (a bez WLZ górne zaciski FR) są w modelu zasilaniem L1, L2, L3 i N. Bez tego faz, zwarć, grup RCD ani bilansu nie sprawdzono.'});
   for(const c of s.circuits){res.circuits.push({id:c.id,status:'nodata',phase:null,rcd:[]});res.balance.unknown+=c.power;res.balance.total+=c.power}
   return res;
@@ -63,7 +65,9 @@ function analyze(s){
 
  // A single-pole main switch terminal 'L' is the L1 source; a 1-phase supply energises only L1 and N.
  // With a WLZ entry on the board, its cores are the source (PEN carries N) and the main switch must be wired from it.
- const starts=l=>(wlzs.length?wlzs.flatMap(m=>ports(m).filter(p=>p.role===l||(l==='L1'&&p.role==='L')||(l==='N'&&p.role==='PEN')).map(p=>key(m.id,p.key))):mains.flatMap(m=>ports(m).filter(p=>p.side==='t'&&(p.role===l||(l==='L1'&&p.role==='L'))).map(p=>key(m.id,p.key))));
+ // With a meter cabinet the service cable is the source; the WLZ is then just a cable from the cabinet.
+ const entryStarts=(list,l)=>list.flatMap(m=>ports(m).filter(p=>p.role===l||(l==='L1'&&p.role==='L')||(l==='N'&&p.role==='PEN')).map(p=>key(m.id,p.key)));
+ const starts=l=>services.length?entryStarts(services,l):(wlzs.length?wlzs.flatMap(m=>ports(m).filter(p=>p.role===l||(l==='L1'&&p.role==='L')||(l==='N'&&p.role==='PEN')).map(p=>key(m.id,p.key))):mains.flatMap(m=>ports(m).filter(p=>p.side==='t'&&(p.role===l||(l==='L1'&&p.role==='L'))).map(p=>key(m.id,p.key))));
  for(const wz of wlzs){const n=wz.cores||5,sys=net.system,mat=net.wlz?.material;
   if(net.supply==='1F'&&n>=4)issues.push({severity:'warn',device:wz.id,title:'WLZ 3-fazowy przy zasilaniu 1-fazowym',text:`${wz.label} ma ${n} żył (L1, L2, L3…), a w parametrach sieci zasilanie jest 1-fazowe. Model zasila tylko L1 i N.`});
   if(net.supply==='3F'&&n<=3)issues.push({severity:'warn',device:wz.id,title:'WLZ 1-fazowy przy zasilaniu 3-fazowym',text:`${wz.label} ma ${n} żyły (L, N/PEN…), a zasilanie jest 3-fazowe. Sprawdź liczbę żył WLZ.`});
@@ -154,7 +158,7 @@ function analyze(s){
  }
 
  // Protective conductor: PE bars and SPD earth terminals must reach a PE source (WLZ PE/PEN core, PEN split block, GSU).
- {const compAll=components(E),peSrc=[...s.components.filter(c=>c.type==='WLZ'||c.type==='GEN').flatMap(c=>ports(c).filter(p=>p.role==='PE'||p.role==='PEN').map(p=>key(c.id,p.key))),...s.components.filter(c=>c.type==='GSU'||TYPES[c.type].penBridge).flatMap(c=>ports(c).filter(p=>p.role==='PE').map(p=>key(c.id,p.key)))];
+ {const compAll=components(E),peSrc=[...s.components.filter(c=>c.type==='WLZ'||c.type==='GEN'||c.type==='SUPPLY').flatMap(c=>ports(c).filter(p=>p.role==='PE'||p.role==='PEN').map(p=>key(c.id,p.key))),...s.components.filter(c=>c.type==='GSU'||TYPES[c.type].penBridge).flatMap(c=>ports(c).filter(p=>p.role==='PE').map(p=>key(c.id,p.key)))];
   const peBars=s.components.filter(c=>TYPES[c.type].bar&&!TYPES[c.type].penBridge&&c.type!=='GSU'&&ports(c).every(p=>p.role==='PE')),spdPE=s.components.filter(c=>TYPES[c.type].spd).map(c=>({c,n:portOf(c,'b','PE')})).filter(x=>x.n);
   if(!peSrc.length){if(peBars.length||spdPE.length)issues.push({severity:'info',title:'Brak danych: źródło przewodu ochronnego',text:'Na planszy nie ma WLZ z żyłą PE/PEN, złączki rozdziału PEN ani GSU, więc nie sprawdzono, czy listwy PE i ograniczniki przepięć są połączone z przewodem ochronnym.'})}
   else{const ok=n=>peSrc.some(p=>sameComp(compAll,p,n));

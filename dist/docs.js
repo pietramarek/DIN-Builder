@@ -11,7 +11,7 @@ const normCable=t=>String(t||'').trim().replace(/\s+/g,' ').replace(/(\d)\s*[xX�
 function materialRows(s){
  const rows=[],net=s.network||{},order=Object.keys(TYPES);
  const groups=new Map();
- for(const c of s.components){if(TYPES[c.type].entry)continue;const k=c.type+'|'+c.rating+'|'+(c.cores||'');if(!groups.has(k))groups.set(k,{type:c.type,rating:c.rating,cores:c.cores,labels:[]});groups.get(k).labels.push(c.label)}
+ for(const c of s.components){if(TYPES[c.type].entry||TYPES[c.type].boxEntry)continue;const k=c.type+'|'+c.rating+'|'+(c.cores||'');if(!groups.has(k))groups.set(k,{type:c.type,rating:c.rating,cores:c.cores,labels:[]});groups.get(k).labels.push(c.label)}
  for(const g of [...groups.values()].sort((a,b)=>order.indexOf(a.type)-order.indexOf(b.type)))rows.push({qty:g.labels.length,unit:'szt.',name:`${TYPES[g.type].name} (${TYPES[g.type].width} mod.)`,params:g.rating+(g.cores?`, ${g.cores} żył`:''),where:g.labels.join(', '),example:exampleName(g.type)});
  const bb=new Map();for(const b of s.busbars||[]){const k=b.type+'|'+(b.to-b.from+1);if(!bb.has(k))bb.set(k,{type:b.type,len:b.to-b.from+1,where:[]});bb.get(k).where.push(`rząd ${b.row+1}, mod. ${b.from+1}–${b.to+1}`)}
  for(const g of bb.values())rows.push({qty:g.where.length,unit:'szt.',name:BUSBARS[g.type].name,params:`${g.len} mod. (do przycięcia)`,where:g.where.join('; '),example:''});
@@ -91,10 +91,12 @@ function shoppingList(boards){
  const map=new Map(),add=(name,params,qty,unit,note,board)=>{const k=name+'|'+params+'|'+unit;if(!map.has(k))map.set(k,{name,params,unit,qty:0,missing:false,notes:new Set(),boards:new Set()});const r=map.get(k);if(typeof qty==='number')r.qty+=qty;else r.missing=true;if(note)r.notes.add(note);r.boards.add(board)};
  for(const{name:bn,s}of boards){
   const d=dims(s),adv=enclosureAdvice(s),blanks=s.components.filter(c=>TYPES[c.type].blank).reduce((n,c)=>n+TYPES[c.type].width,0);
+  if(s.meterBox)add('Skrzynka licznikowa z polem na licznik 3F',`${s.meterBox.modules} mod. + pole licznika`,1,'szt.','',bn);
   add('Obudowa rozdzielnicy z szynami DIN',`${d.rows} × ${d.modules} mod.`,1,'szt.',adv.suggest&&adv.suggest.rows*adv.suggest.modules>d.rows*d.modules?`zalecana co najmniej ${adv.suggest.rows} × ${adv.suggest.modules} mod.`:'',bn);
   for(const r of materialRows(s)){
    if(r.name==='Przewód w rozdzielnicy (linka)'){const[role,g]=r.params.split(' ');add('Przewód jednożyłowy linka (LgY / H07V-K)',`${g} mm², ${WIRE_COLOUR[role]||role}`,r.qty*WIRE_M,'m',`szacunek: ${WIRE_M.toString().replace('.',',')} m na odcinek – sprawdź wg obudowy`,bn);continue}
    if(r.name.startsWith('Zaślepka'))continue;
+   if(r.name.startsWith('Licznik energii OSD')){add(r.name,r.params,r.qty,r.unit,'zwykle dostarcza i montuje OSD – sprawdź warunki przyłączenia',bn);continue}
    add(r.name,r.params,r.qty===''?'':r.qty,r.unit,r.qty===''?'brak długości części obwodów – uzupełnij w tabeli obwodów':'',bn)}
   const free=adv.capacity-adv.used;if(blanks)add('Zaślepka modułowa','1 mod.',blanks,'szt.','w projekcie',bn);
   if(free-blanks>0)add('Zaślepka modułowa','1 mod.',free-blanks,'szt.','na wolne miejsca (opcjonalnie)',bn);

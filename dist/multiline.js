@@ -13,12 +13,12 @@ function levels(s){
  const closed={...s,components:s.components.map(c=>({...c,on:true}))},E=T.edges(closed),adj=new Map();
  const add=(a,b,w)=>{if(!adj.has(a))adj.set(a,[]);adj.get(a).push([b,w])};
  for(const e of E){const w=e.kind==='device'?1:0;add(e.a,e.b,w);add(e.b,e.a,w)}
- const entry=s.components.filter(c=>TYPES[c.type].entry);
+ const svc=s.components.filter(c=>c.type==='SUPPLY'),entry=svc.length?svc:s.components.filter(c=>TYPES[c.type].entry);
  const src=entry.length?entry.flatMap(c=>ports(c).map(p=>c.id+':'+p.key)):s.components.filter(c=>MAIN_TYPES.includes(c.type)).flatMap(c=>ports(c).filter(p=>p.side==='t').map(p=>c.id+':'+p.key));
  const dist=new Map(),dq=[];for(const k of src){dist.set(k,0);dq.push(k)}
  while(dq.length){const n=dq.shift(),d=dist.get(n);for(const[m,w]of adj.get(n)||[]){const nd=d+w;if(!dist.has(m)||nd<dist.get(m)){dist.set(m,nd);if(w)dq.push(m);else dq.unshift(m)}}}
  const lv=new Map();
- for(const c of s.components){if(TYPES[c.type].entry){lv.set(c.id,0);continue}const ds=ports(c).map(p=>dist.get(c.id+':'+p.key)).filter(v=>v!==undefined);lv.set(c.id,ds.length?1+Math.min(...ds):null)}
+ for(const c of s.components){if(entry.includes(c)){lv.set(c.id,0);continue}const ds=ports(c).map(p=>dist.get(c.id+':'+p.key)).filter(v=>v!==undefined);lv.set(c.id,ds.length?1+Math.min(...ds):null)}
  return lv;
 }
 const columns=c=>{const t=TYPES[c.type];if(t.grid)return t.grid.poles.length;const ps=ports(c);return Math.max(1,ps.filter(p=>p.side==='t').length,ps.filter(p=>p.side==='b').length)};
@@ -39,7 +39,7 @@ function anchor(s,L,dev,portKey){
  const c=s.components.find(x=>x.id===dev),b=L.box.get(dev);if(!c||!b)return null;const t=TYPES[c.type],p=ports(c).find(x=>x.key===portKey);if(!p)return null;
  if(p.side==='g'){const n=t.grid.poles.length;return{x:b.x+10+(p.row+.5)*(b.w-20)/n,y:b.y,dir:-1,role:p.role}}
  const n=p.count,x=b.x+10+(p.i+.5)*(b.w-20)/n;
- if(t.entry)return{x,y:b.y+b.h,dir:1,role:p.role};
+ if(t.entry||t.boxEntry)return{x,y:b.y+b.h,dir:1,role:p.role};
  return p.side==='t'?{x,y:b.y,dir:-1,role:p.role}:{x,y:b.y+b.h,dir:1,role:p.role};
 }
 function route(a,b,i){
@@ -54,7 +54,7 @@ function route(a,b,i){
 function symbol(s,L,c){
  const t=TYPES[c.type],b=L.box.get(c.id),ps=ports(c),top=ps.filter(p=>p.side==='t'),bot=ps.filter(p=>p.side==='b'),mid=b.y+b.h/2;let g='';
  const X=(p)=>anchor(s,L,c.id,p.key).x;
- if(t.entry){g+=`<rect x="${b.x+b.w/2-10}" y="${b.y-6}" width="20" height="${b.h-14}" rx="4" class="ml-sheath"/>`;for(const p of ps){const x=X(p);g+=`<path d="M ${b.x+b.w/2} ${b.y+b.h-20} L ${x} ${b.y+b.h}" stroke="${COLORS[p.role]||'#444'}" class="ml-core"/>`}return g}
+ if(t.entry||t.boxEntry){g+=`<rect x="${b.x+b.w/2-10}" y="${b.y-6}" width="20" height="${b.h-14}" rx="4" class="ml-sheath"/>`;for(const p of ps){const x=X(p);g+=`<path d="M ${b.x+b.w/2} ${b.y+b.h-20} L ${x} ${b.y+b.h}" stroke="${COLORS[p.role]||'#444'}" class="ml-core"/>`}return g}
  if(t.grid||t.bar){const roles=t.grid?t.grid.poles:[...new Set(ps.map(p=>p.role))];roles.forEach((r,k)=>{const y=b.y+14+k*Math.min(12,(b.h-24)/Math.max(1,roles.length-1));g+=`<line x1="${b.x+6}" x2="${b.x+b.w-6}" y1="${y}" y2="${y}" stroke="${COLORS[r]||'#444'}" class="ml-bar"/>`});
   for(const p of ps){if(p.side==='g')continue;const a=anchor(s,L,c.id,p.key),k=roles.indexOf(p.role),y=b.y+14+k*Math.min(12,(b.h-24)/Math.max(1,roles.length-1));g+=`<line x1="${a.x}" x2="${a.x}" y1="${a.y}" y2="${y}" stroke="${COLORS[p.role]||'#444'}" class="ml-thin"/>`}
   if(t.penBridge)g+=`<text x="${b.x+b.w/2}" y="${b.y+b.h-4}" class="ml-note" text-anchor="middle">mostek PE–N</text>`;return g}
