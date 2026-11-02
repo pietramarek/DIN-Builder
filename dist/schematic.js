@@ -74,7 +74,7 @@ function svg(s){
  const maxDepth=nodes.reduce((m,n)=>Math.max(m,n.depth+(n.circuits.length&&!n.children.length?1:0)),1);
  const width=Math.max(x,3)*W+300,height=(maxDepth+1)*H+150+FOOT_H;
  const footY=height-FOOT_H;
- const net=s.network||{},supply=[net.supply==='1F'?'1~ 230 V':net.supply==='3F'?'3~ 400/230 V':'zasilanie: brak danych',net.system||'układ: brak danych',net.mainFuse?'zabezp. '+net.mainFuse:'zabezp. przedlicznikowe: brak danych',net.wlz?.cable?'WLZ '+net.wlz.cable+(net.wlz.material?' '+net.wlz.material:'')+(net.wlz.cores?', '+net.wlz.cores+' żył':'')+(net.wlz.length?', '+net.wlz.length+' m':''):'WLZ: brak danych'].join(' · ');
+ const net=s.network||{},supply=[net.supply==='1F'?'1~ 230 V':net.supply==='3F'?'3~ 400/230 V':'zasilanie: brak danych',net.system||'układ: brak danych',(root.DINCalc?.preMeter(s).text||net.mainFuse)?'zabezp. '+(root.DINCalc?.preMeter(s).text||net.mainFuse):'zabezp. przedlicznikowe: brak danych',net.wlz?.cable?'WLZ '+net.wlz.cable+(net.wlz.material?' '+net.wlz.material:'')+(net.wlz.cores?', '+net.wlz.cores+' żył':'')+(net.wlz.length?', '+net.wlz.length+' m':''):'WLZ: brak danych'].join(' · ');
  let g='';
  const rootXs=t.roots.map(r=>r.x);
  if(rootXs.length){g+=`<text x="${rootXs[0]+20}" y="22" class="sup">${esc(supply)}</text><path d="M${rootXs[0]+20},30 V${H-BOX_H/2}" class="line"/>`;g+=t.roots.length>1?`<path d="M${Math.min(...rootXs)+20},${H-BOX_H/2-14} H${Math.max(...rootXs)+20}" class="line"/>`:''}

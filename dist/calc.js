@@ -16,10 +16,14 @@ const LIMIT={light:3,other:5};
 const GAMMA_CU=56,GAMMA_AL=34,UN=230,UL=400; // conductivity m/(Ω·mm²), common design values for Cu and Al; nominal voltages
 
 const num=s=>Number(String(s).replace(',','.'));
-function ratedCurrent(rating){const m=String(rating||'').match(/\b[BCDKZ]\s*(\d+(?:[.,]\d+)?)\b/i)||String(rating||'').match(/(\d+(?:[.,]\d+)?)\s*A\b/);return m?num(m[1]):null}
+function ratedCurrent(rating){const m=String(rating||'').match(/\b[BCDEKZ]\s*(\d+(?:[.,]\d+)?)\b/i)||String(rating||'').match(/(\d+(?:[.,]\d+)?)\s*A\b/);return m?num(m[1]):null}
 function crossSection(cable){const m=String(cable||'').match(/[x×]\s*(\d+(?:[.,]\d+)?)/i);return m?num(m[1]):null}
 const fmt=(v,d=1)=>v.toLocaleString('pl-PL',{maximumFractionDigits:d,minimumFractionDigits:d});
 
+// Pre-meter protection: the first protective device on the meter cabinet rail, otherwise the text typed in the network form.
+function preMeter(s){const n=s.network||{},d=s.meterBox?s.components.filter(c=>c.row===-2&&M.CIRCUIT_DEVICES.includes(c.type)).sort((a,b)=>a.slot-b.slot)[0]:null;
+ if(d){const poles=M.ports(d).filter(p=>p.side==='t'&&p.role!=='N').length;return{text:`${poles>1?poles+' × ':''}${d.rating}`,In:ratedCurrent(d.rating),gG:!!M.TYPES[d.type].fuse||/\bgG\b/i.test(d.rating),device:d}}
+ return{text:n.mainFuse||'',In:fuseAmps(n.mainFuse),gG:/\bgG\b/i.test(n.mainFuse||''),device:null}}
 function fuseAmps(text){const m=String(text||'').match(/(\d+(?:[.,]\d+)?)\s*A\b/);return m?num(m[1]):null}
 // Internal supply line (WLZ) from the meter to the board. Its voltage drop is computed from the total installed power
 // (no diversity factor; 3-phase assumes balanced phases) and added to each circuit, so limits apply from the origin.
@@ -41,7 +45,7 @@ function wlzCheck(s,ctx){
  else w.zsOrigin=null;
  return w}
 function wlzSelf(s){
- const n=s.network||{},w=n.wlz||{},three=n.supply?n.supply==='3F':w.cores?w.cores>=4:true,al=w.material==='Al',out={S:crossSection(w.cable),length:w.length,method:w.method||'',In:fuseAmps(n.mainFuse),gG:/\bgG\b/i.test(n.mainFuse||''),Iz:null,dU:null,issues:[]};
+ const n=s.network||{},w=n.wlz||{},three=n.supply?n.supply==='3F':w.cores?w.cores>=4:true,al=w.material==='Al',out={S:crossSection(w.cable),length:w.length,method:w.method||'',In:preMeter(s).In,gG:preMeter(s).gG,Iz:null,dU:null,issues:[]};
  const missing=[];if(out.S==null)missing.push('przekrój przewodu (np. YKY 5 × 10)');if(!(w.length>0))missing.push('długość');if(!w.method)missing.push('sposób ułożenia');if(!w.material)missing.push('materiał żył (Cu/Al)');
  if(missing.length&&s.circuits.some(c=>c.device))out.issues.push({severity:'info',title:'Brak danych: WLZ',text:'Spadek napięcia obwodów jest liczony tylko od rozdzielnicy, a obciążalność WLZ nie została sprawdzona. Uzupełnij w parametrach sieci: '+missing.join(', ')+'.'});
  if(al&&out.S!=null&&w.method)out.issues.push({severity:'info',title:'Brak danych: obciążalność WLZ aluminiowego',text:'Program ma tylko zweryfikowane tabele dla miedzi, więc obciążalności WLZ Al wobec zabezpieczenia przedlicznikowego nie sprawdzono. Spadek napięcia liczony z γ = 34 m/(Ω·mm²).'});
@@ -86,13 +90,13 @@ function checkCircuit(s,c,wlz){
 function analyzeCircuits(s,ctx=api.contextFor?api.contextFor(s):undefined){const wlz=wlzCheck(s,ctx),results=s.circuits.map(c=>checkCircuit(s,c,wlz));return{results,wlz,issues:[...wlz.issues,...selectivity(s,wlz,results),...results.flatMap(r=>r.issues)]}}
 // Simplified selectivity: compares rated currents only (a downstream device should be smaller than the one above it).
 // Real selectivity needs the manufacturers' tables; this only catches the obvious cases.
-function selectivity(s,wlz,results){const n=s.network||{},out=[],mains=s.components.filter(c=>c.type==='MAIN'||c.type==='MAIN2'),fuseIn=wlz.fed?null:fuseAmps(n.mainFuse);
+function selectivity(s,wlz,results){const n=s.network||{},out=[],mains=s.components.filter(c=>c.type==='MAIN'||c.type==='MAIN2'),fuseIn=wlz.fed?null:preMeter(s).In;
  let up=wlz.fed?(wlz.upIn!=null?{In:wlz.upIn,what:'zabezpieczenie obwodu zasilającego w '+(wlz.label.split(' / ')[0]||'rozdzielnicy nadrzędnej')}:null):fuseIn!=null?{In:fuseIn,what:'zabezpieczenie przedlicznikowe'}:null;
  for(const m of mains){const bc=breakerCurve(m.rating),In=ratedCurrent(m.rating);if(In==null)continue;
   if(bc){if(up&&In>=up.In)out.push({severity:'warn',device:m.id,title:'Brak wybiórczości: '+m.label,text:`Wyłącznik główny ${m.label} (${fmt(In,0)} A) nie jest mniejszy niż ${up.what} (${fmt(up.In,0)} A). Przy zwarciu może zadziałać zabezpieczenie nadrzędne. Kontrola uproszczona – porównanie prądów znamionowych.`});up={In,what:'wyłącznik główny '+m.label}}
   else if(up&&In<up.In)out.push({severity:'warn',device:m.id,title:'Rozłącznik główny słabszy niż zabezpieczenie powyżej: '+m.label,text:`${m.label} ma ${fmt(In,0)} A, a ${up.what} ${fmt(up.In,0)} A. Rozłącznik bez wyzwalacza powinien mieć prąd znamionowy co najmniej równy zabezpieczeniu przed nim (albo opis „${m.rating}” oznacza wyłącznik – wpisz charakterystykę, np. C40).`})}
  if(up)for(const r of results){const c=s.circuits.find(x=>x.id===r.id);if(r.In!=null&&c?.device&&r.In>=up.In)out.push({severity:'warn',device:c.device,title:'Brak wybiórczości: '+c.name,text:`Zabezpieczenie obwodu (${fmt(r.In,0)} A) nie jest mniejsze niż ${up.what} (${fmt(up.In,0)} A). Przy przeciążeniu lub zwarciu może zadziałać zabezpieczenie nadrzędne i wyłączyć całą rozdzielnicę. Kontrola uproszczona – porównanie prądów znamionowych; pełna wybiórczość wymaga tabel producenta.`})}
  return out}
-const api={breakerCurve,selectivity,wlzCheck,fuseAmps,IZ3,IZ,METHODS,KINDS,LIMIT,ratedCurrent,crossSection,checkCircuit,analyzeCircuits};
+const api={preMeter,breakerCurve,selectivity,wlzCheck,fuseAmps,IZ3,IZ,METHODS,KINDS,LIMIT,ratedCurrent,crossSection,checkCircuit,analyzeCircuits};
 if(typeof module!=='undefined')module.exports=api;root.DINCalc=api;
 })(typeof window!=='undefined'?window:globalThis);

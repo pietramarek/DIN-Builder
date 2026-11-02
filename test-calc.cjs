@@ -78,6 +78,13 @@ assert.throws(()=>parse({...w3,network:{...w3.network,wlz:{method:'Z'}}}),/sieci
  z.components[0].rating='16 A';iss=analyzeCircuits(z).issues;assert.ok(iss.some(i=>i.title==='Rozłącznik główny słabszy niż zabezpieczenie powyżej: Q0'));
  z.components[1].rating='B16';z.components[0].rating='63 A';assert.ok(!analyzeCircuits(z).issues.some(i=>i.title.startsWith('Brak wybiórczości')),'B16 below 20 A fuse')}
 
+// Pre-meter protection taken from the meter cabinet rail
+{const {preMeter}=require('./dist/calc.js');const z={version:1,name:'P',meterBox:{modules:9},network:{supply:'3F',mainFuse:'3 × 40 A gG',wlz:{cable:'YKY 5 × 4',length:20,method:'A1',material:'Cu'}},components:[{id:'FP',type:'FUSE3',row:-2,slot:0,label:'FP',rating:'gG 25 A',on:true},dev('F','MCB','B16')],wires:[],circuits:[{id:'c',name:'X',device:'F',power:1000,cable:'3 × 2,5'}]};
+ let pm=preMeter(z);assert.equal(pm.In,25);assert.equal(pm.gG,true);assert.equal(pm.text,'3 × gG 25 A');
+ assert.ok(analyzeCircuits(z).issues.some(i=>i.title==='WLZ za słaba dla zabezpieczenia przedlicznikowego'),'1,6 × 25 = 40 A > 1,45 × 24 A on 4 mm² A1');
+ z.components[0]={id:'FP',type:'MCB3',row:-2,slot:0,label:'FP',rating:'C20',on:true};pm=preMeter(z);assert.equal(pm.In,20);assert.equal(pm.gG,false);assert.ok(!analyzeCircuits(z).issues.some(i=>i.title.startsWith('WLZ za słaba')),'C20 ≤ Iz 24 A');
+ assert.equal(preMeter({...z,meterBox:undefined}).In,40,'without a cabinet the typed value is used');assert.equal(ratedCurrent('E25 SLS'),25)}
+
 // Missing data stays explicit
 s=board('B16',{length:undefined,method:'',kind:''});r=checkCircuit(s,s.circuits[0]);
 assert.deepEqual(r.missing,['sposób ułożenia','długość','rodzaj obwodu']);
