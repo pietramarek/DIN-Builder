@@ -34,7 +34,7 @@ const TOPICS=[
 <li><b>Parametry sieci</b> – kliknij puste miejsce planszy: układ sieci, zasilanie 1/3-fazowe, zabezpieczenie przedlicznikowe, dane WLZ.</li>
 <li><b>WLZ</b> – z katalogu „Zasilanie” dodaj przewód WLZ (wejście od dołu lub od góry obudowy), ustaw materiał i liczbę żył.</li>
 <li><b>Aparaty</b> – kliknij element w katalogu nad planszą (trafi w pierwsze wolne miejsce) albo przeciągnij go na szynę.</li>
-<li><b>Przewody</b> – kliknij zacisk, potem drugi zacisk. Funkcję żyły i przekrój zmienisz po kliknięciu przewodu.</li>
+<li><b>Przewody</b> – kliknij zacisk, potem drugi zacisk. Gdy przewody zasłaniają zaciski, włącz w pasku narzędzi „Pod aparatami” (w trybie „Połączenia” dzieje się to samo). Funkcję żyły i przekrój zmienisz po kliknięciu przewodu.</li>
 <li><b>Katalog</b> – na górze ulubione; „Wszystkie aparaty” rozwija pełną listę. Gwiazdka dodaje lub usuwa aparat z ulubionych.</li>
 <li><b>Szyny grzebieniowe</b> – zaznacz wyłącznik nadprądowy i dodaj szynę w panelu po prawej.</li>
 <li><b>Obwody</b> – w tabeli pod planszą: nazwa, aparat, moc, przewód, długość, sposób ułożenia.</li>
