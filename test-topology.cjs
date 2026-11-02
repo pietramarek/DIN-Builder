@@ -237,7 +237,7 @@ r=penx('TN-C-S');assert.ok(!titles(r).includes('Rozdział PEN za wyłącznikiem 
  b.wires.push(wire('SV','t0','FP','t0'),wire('SV','t1','FP','t1','L2'),wire('SV','t2','FP','t2','L3'),wire('FP','b0','P1','t0'),wire('FP','b1','P1','t1','L2'),wire('FP','b2','P1','t2','L3'),wire('SV','t3','P1','t3','N'),
   wire('P1','b0','WO','t0'),wire('P1','b1','WO','t1','L2'),wire('P1','b2','WO','t2','L3'),wire('P1','b3','WO','t3','N'),wire('WZ','t0','Q0','t0'),wire('WZ','t1','Q0','t1','L2'),wire('WZ','t2','Q0','t2','L3'),wire('WZ','t3','Q0','t3','N'));
  let rr=analyze(b);assert.deepEqual(errors(rr),[],'full chain through the meter cabinet');assert.equal(rr.circuits.find(c=>c.id==='c1').status,'ok');
- assert.equal(parse(b).meterBox.modules,9);assert.throws(()=>parse({...b,meterBox:{modules:7}}),/licznikowa/);
+ assert.equal(parse(b).meterBox.modules,9);assert.equal(parse({...b,meterBox:{...b.meterBox,wlzSide:'top'}}).meterBox.wlzSide,'top');assert.throws(()=>parse({...b,meterBox:{...b.meterBox,wlzSide:'bok'}}),/licznikowa/);assert.throws(()=>parse({...b,meterBox:{modules:7}}),/licznikowa/);
  b.components.find(c=>c.id==='FP').on=false;assert.equal(analyze(b).circuits.find(c=>c.id==='c1').status,'unpowered','pre-meter fuse open: board dead');
  assert.throws(()=>parse({...b,meterBox:undefined}),/szyn|zachodzą/,'cabinet devices need the cabinet')}
 
