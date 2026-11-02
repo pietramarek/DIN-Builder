@@ -20,6 +20,8 @@ TYPES.PENX={name:'Złączka rozdziału PEN',short:'PEN',prefix:'X',width:2,ratin
 const CORES={5:['L1','L2','L3','N','PE'],4:['L1','L2','L3','PEN'],3:['L','N','PE'],2:['L','PEN']};
 // WLZ is drawn as a cable entering the enclosure below the last rail (row -1 = entry zone); `width` only spaces its cores.
 TYPES.WLZ={name:'Przewód zasilający WLZ',short:'WLZ',prefix:'W',width:3,rating:'WLZ',passive:true,entry:true,cores:'out',poles:CORES[5]};
+// Second source (generator, inverter with battery): another cable in the entry zone, a separate supply in the topology.
+TYPES.GEN={name:'Drugie źródło (agregat / falownik z magazynem)',short:'Źródło 2',prefix:'G',width:3,rating:'Agregat',passive:true,entry:true,source2:true,cores:'out',poles:CORES[5]};
 TYPES.ALCU={name:'Złączki przejściowe Al/Cu (bimetaliczne)',short:'Al/Cu',prefix:'X',width:4,rating:'Al → Cu',passive:true,cores:'through',poles:CORES[5]};
 // SPD and loads have no conducting path from top to bottom terminals (noThrough); meters always conduct (passive).
 TYPES.SPD.noThrough=true;TYPES.SPD.spd=true;

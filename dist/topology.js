@@ -40,7 +40,7 @@ function components(E){const adj=adjacency(E),comp=new Map();let id=0;for(const 
 const sameComp=(comp,a,b)=>comp.has(a)&&comp.get(a)===comp.get(b);
 
 function analyze(s){
- const issues=[],E=edges(s),mains=s.components.filter(c=>MAIN_TYPES.includes(c.type)),wlzs=s.components.filter(c=>c.type==='WLZ'),net=s.network||{},byId=new Map(s.components.map(c=>[c.id,c]));
+ const issues=[],E=edges(s),mains=s.components.filter(c=>MAIN_TYPES.includes(c.type)),wlzs=s.components.filter(c=>c.type==='WLZ'),gens=s.components.filter(c=>c.type==='GEN'),net=s.network||{},byId=new Map(s.components.map(c=>[c.id,c]));
  const res={supplied:mains.length>0||wlzs.length>0,circuits:[],balance:{L1:0,L2:0,L3:0,unknown:0,total:0},issues,phaseOf:new Map()};
  const roleOf=node=>{const[d,p]=node.split(':');const c=byId.get(d);return c&&ports(c).find(x=>x.key===p)?.role};
  const label=node=>{const[d,p]=node.split(':');const c=byId.get(d);const pt=c&&ports(c).find(x=>x.key===p);return c?c.label+' / '+(pt.side==='t'?'góra ':'dół ')+pt.role:node};
@@ -79,8 +79,16 @@ function analyze(s){
  if(!net.system)issues.push({severity:'info',title:'Brak danych: układ sieci',text:'Nie podano układu sieci (TN-S, TN-C-S, TN-C, TT, IT), więc połączenia N z PE oceniono jako wymagające sprawdzenia.'});
  if(net.supply==='1F'&&mains.some(m=>m.type==='MAIN'))issues.push({severity:'info',title:'Zasilanie 1-fazowe',text:'Zaciski L2 i L3 wyłącznika głównego są w modelu bez napięcia.'});
  if(net.supply==='3F'&&mains.every(m=>m.type==='MAIN2'))issues.push({severity:'warn',title:'Wyłącznik główny 1P+N przy zasilaniu 3-fazowym',text:'Model przyjmuje, że wyłącznik 1P+N jest na fazie L1. Sprawdź, czy rozdzielnica nie potrzebuje wyłącznika 4P.'});
- const supply=list=>{const adj=adjacency(list),map=new Map();for(const l of active)for(const n of reach(adj,starts(l))){if(!map.has(n))map.set(n,new Set());map.get(n).add(l)}return map};
- const full=supply(E);
+ const supply=(list,st=starts,act=active)=>{const adj=adjacency(list),map=new Map();for(const l of act)for(const n of reach(adj,st(l))){if(!map.has(n))map.set(n,new Set());map.get(n).add(l)}return map};
+ // Second source: its own phases, kept apart from the grid; any meeting of the two is reported.
+ const genStarts=l=>gens.flatMap(m=>ports(m).filter(p=>p.role===l||(l==='L1'&&p.role==='L')||(l==='N'&&p.role==='PEN')).map(p=>key(m.id,p.key)));
+ const full=supply(E),genMap=gens.length?supply(E,genStarts,SOURCES):new Map();
+ if(gens.length){let shownL=false,shownN=false,shownS=false;
+  for(const[n,set]of genMap){if(n.startsWith('bb:'))continue;const g=full.get(n),live=[...set].some(l=>LIVE.includes(l));
+   if(!shownS&&(set.size>1&&live||roleOf(n)==='PE'&&live)){shownS=true;issues.push({severity:'error',device:n.split(':')[0],title:'Zwarcie w obwodzie drugiego źródła',text:`Przewody drugiego źródła (${[...set].join(', ')}) łączą się ze sobą${roleOf(n)==='PE'?' lub z PE':''} przy ${label(n)}.`})}
+   if(!g)continue;const anyLive=live||[...g].some(l=>LIVE.includes(l));
+   if(anyLive&&!shownL){shownL=true;issues.push({severity:'error',device:n.split(':')[0],title:'Sieć połączona z drugim źródłem',text:`Przewody sieci i drugiego źródła (agregatu / falownika) spotykają się przy ${label(n)}. Źródła muszą być rozdzielone przełącznikiem 1-0-2 albo automatyką SZR – inaczej grozi zwarcie i podanie napięcia do sieci.`})}
+   else if(!anyLive&&!shownN&&set.has('N')&&g.has('N')){shownN=true;issues.push({severity:'info',device:n.split(':')[0],title:'Wspólny N sieci i drugiego źródła',text:`N sieci i drugiego źródła są połączone (np. przy ${label(n)}). Zwykle przełącza się także N (przełącznik 4P lub 1P+N); wspólny N jest dopuszczalny tylko przy rozwiązaniu przewidzianym w projekcie.`})}}}
 
  // Shorts and live PE
  const seenShort=new Set();let livePE=false,nOnPE=null;
@@ -102,7 +110,7 @@ function analyze(s){
  if(net.system==='TN-C'&&rcds.length)issues.push({severity:'error',device:rcds[0].id,title:'Wyłącznik różnicowoprądowy w układzie TN-C',text:'W układzie TN-C nie stosuje się urządzeń różnicowoprądowych (PN-HD 60364-4-41, 411.4.5) – przewód PEN przechodziłby przez RCD. Wymagany rozdział PEN przed RCD, czyli przejście na TN-C-S.'});
  if(net.system==='IT')issues.push({severity:'info',title:'Układ IT – zakres kontroli',text:'Model sprawdza tylko połączenia. Nie ocenia kontroli stanu izolacji ani warunków samoczynnego wyłączenia przy drugim zwarciu doziemnym, wymaganych w układzie IT.'});
  const noRcdEdges=E.filter(e=>!(e.kind==='device'&&RCD_TYPES.includes(e.type)));
- const noRcd=supply(noRcdEdges),compNo=components(noRcdEdges);
+ const noRcd=supply(noRcdEdges),compNo=components(noRcdEdges),noRcdGen=gens.length?supply(noRcdEdges,genStarts,SOURCES):new Map();
  const portOf=(c,side,role)=>{const p=ports(c).find(p=>p.side===side&&p.role===role);return p&&key(c.id,p.key)};
  for(const r of rcds){
   for(const p of ports(r).filter(p=>p.side==='t')){const t=key(r.id,p.key),b=key(r.id,'b'+p.i);if(sameComp(compNo,t,b))issues.push({severity:'error',device:r.id,title:'Obejście '+TYPES[r.type].short+' '+r.label,text:`Zacisk ${p.role} przed i za ${r.label} jest połączony inną drogą. Prąd ominie wyłącznik różnicowoprądowy.`})}
@@ -110,7 +118,7 @@ function analyze(s){
  for(let i=0;i<rcds.length;i++)for(let j=i+1;j<rcds.length;j++){const a=portOf(rcds[i],'b','N'),b=portOf(rcds[j],'b','N');if(a&&b&&sameComp(compNo,a,b))issues.push({severity:'error',device:rcds[j].id,title:'Wspólny N dla dwóch grup RCD',text:`Przewody N za ${rcds[i].label} i za ${rcds[j].label} są połączone. Każda grupa RCD potrzebuje własnego N, inaczej wyłączniki będą wyzwalać bez usterki.`})}
  const peNodes=[...compNo.keys()].filter(n=>!n.startsWith('bb:')&&roleOf(n)==='PE');
  for(const r of rcds){const bn=portOf(r,'b','N');if(bn&&peNodes.some(pn=>sameComp(compNo,pn,bn)))issues.push({severity:'error',device:r.id,title:'N połączony z PE za '+r.label,text:`Przewód N za ${r.label} łączy się z PE. Prąd wróci przez PE i RCD zadziała; rozdział PEN może być tylko przed RCD.`})}
- const rcdsReaching=(node,phase)=>rcds.filter(r=>{const own=E.filter(e=>e.kind==='device'&&e.device===r.id);return supply(noRcdEdges.concat(own)).get(node)?.has(phase)&&!noRcd.get(node)?.has(phase)}).map(r=>r.id);
+ const rcdsReaching=(node,phase,gen=false)=>rcds.filter(r=>{const own=E.filter(e=>e.kind==='device'&&e.device===r.id);return supply(noRcdEdges.concat(own),gen?genStarts:starts,gen?SOURCES:active).get(node)?.has(phase)&&!(gen?noRcdGen:noRcd).get(node)?.has(phase)}).map(r=>r.id);
 
  // Circuits
  for(const ci of s.circuits){
@@ -119,14 +127,15 @@ function analyze(s){
   if(!d){res.balance.unknown+=ci.power;res.circuits.push(row);continue}
   // Each pole of a multi-pole breaker is followed separately; power is split evenly over its phases.
   const outs=ports(d).filter(p=>p.side==='b'&&p.role==='L').map(p=>key(d.id,p.key)),out=outs[0],per=outs.map(o=>[...(full.get(o)||[])].filter(l=>LIVE.includes(l)));
+  let gen=false;if(gens.length&&per.every(p=>!p.length)){const pg=outs.map(o=>[...(genMap.get(o)||[])].filter(l=>LIVE.includes(l)));if(pg.some(p=>p.length)){per.splice(0,per.length,...pg);gen=true}}row.source=gen?'gen':'grid';
   if(per.some(p=>p.length>1)){row.status='short';res.balance.unknown+=ci.power}
-  else if(per.every(p=>!p.length)){row.status=d.on?'unpowered':'off';res.balance.unknown+=ci.power;if(d.on)issues.push({severity:'warn',device:d.id,title:'Obwód bez zasilania: '+ci.name,text:`${d.label} nie jest połączony z fazą ${wlzs.length?'WLZ':'wyłącznika głównego'} (w modelu).`})}
+  else if(per.every(p=>!p.length)){row.status=d.on?'unpowered':'off';res.balance.unknown+=ci.power;if(d.on)issues.push({severity:'warn',device:d.id,title:'Obwód bez zasilania: '+ci.name,text:`${d.label} nie jest połączony z fazą ${wlzs.length?'WLZ':'wyłącznika głównego'}${gens.length?' ani drugiego źródła':''} (w modelu).`})}
   else if(per.some(p=>!p.length)){row.status='partial';res.balance.unknown+=ci.power;issues.push({severity:'warn',device:d.id,title:'Niepełne zasilanie: '+ci.name,text:`Nie wszystkie bieguny ${d.label} mają napięcie (w modelu). Odbiornik wielofazowy pracowałby bez jednej fazy.`})}
   else{
    const phases=per.map(p=>p[0]);
-   row.status='ok';row.phases=phases;row.phase=phases.join('+');for(const p of phases)res.balance[p]+=ci.power/phases.length;res.phaseOf.set(ci.id,row.phase);
+   row.status='ok';row.phases=phases;row.phase=phases.join('+');if(gen)res.balance.gen=(res.balance.gen||0)+ci.power;else for(const p of phases)res.balance[p]+=ci.power/phases.length;res.phaseOf.set(ci.id,row.phase);
    if(new Set(phases).size<phases.length)issues.push({severity:'warn',device:d.id,title:'Bieguny na tej samej fazie: '+ci.name,text:`${d.label} ma kilka biegunów zasilanych z ${[...new Set(phases)].join(', ')}. Odbiornik wielofazowy wymaga różnych faz – sprawdź przewody i szynę grzebieniową.`});
-   row.rcd=d.type==='RCBO'?[d.id]:outs.map((o,i)=>rcdsReaching(o,phases[i])).reduce((a,b)=>a.filter(x=>b.includes(x)));
+   row.rcd=d.type==='RCBO'?[d.id]:outs.map((o,i)=>rcdsReaching(o,phases[i],gen)).reduce((a,b)=>a.filter(x=>b.includes(x)));
    if(!row.rcd.length)issues.push({severity:'warn',device:d.id,title:'Obwód bez ochrony RCD: '+ci.name,text:`Faza ${d.label} nie przechodzi przez wyłącznik różnicowoprądowy. Wiele obwodów w mieszkaniach wymaga ochrony dodatkowej RCD ≤30 mA (PN-HD 60364-4-41) – sprawdź przeznaczenie obwodu.`});
    // N of the circuit must pass the same RCD group as its phase. Reference point: the device's own N pole (MCB 1P+N,
    // 3P+N, RCBO) or, for single-pole devices, the N bar chosen in the circuit list.
@@ -134,9 +143,9 @@ function analyze(s){
    const nNode=nPole?key(d.id,nPole.key):nb?key(nb.id,'t0'):null,nWhere=nPole?`zacisk N ${d.label}`:nb?nb.label:'';
    if(!nNode){if(single&&row.rcd.length)issues.push({severity:'info',device:d.id,title:'Brak danych: listwa N obwodu '+ci.name,text:'Nie wskazano listwy N tego obwodu, więc nie sprawdzono, czy N wraca do tej samej grupy RCD co faza.'})}
    else{
-    const topL=ports(d).find(p=>p.side==='t'&&p.role==='L'),up=d.type==='RCBO'?(topL?rcdsReaching(key(d.id,topL.key),phases[0]):[]):row.rcd;
+    const topL=ports(d).find(p=>p.side==='t'&&p.role==='L'),up=d.type==='RCBO'?(topL?rcdsReaching(key(d.id,topL.key),phases[0],gen):[]):row.rcd;
     const rcdN=up.map(id=>portOf(byId.get(id),'b','N')).filter(Boolean),anyRcdN=rcds.filter(r=>r.id!==d.id).map(r=>portOf(r,'b','N')).filter(Boolean);
-    if(!full.get(nNode)?.has('N'))issues.push({severity:'warn',device:nb?nb.id:d.id,title:nb?'Listwa N bez połączenia z N':'Brak N na zacisku N: '+ci.name,text:`${nWhere} (N obwodu ${ci.name}) nie jest połączony z przewodem N zasilania.`});
+    if(!(gen?genMap:full).get(nNode)?.has('N'))issues.push({severity:'warn',device:nb?nb.id:d.id,title:nb?'Listwa N bez połączenia z N':'Brak N na zacisku N: '+ci.name,text:`${nWhere} (N obwodu ${ci.name}) nie jest połączony z przewodem N zasilania.`});
     else if(up.length&&!rcdN.some(n=>sameComp(compNo,n,nNode)))issues.push({severity:'error',device:nb?nb.id:d.id,title:'N obwodu spoza grupy RCD: '+ci.name,text:`Faza obwodu przechodzi przez ${up.map(id=>byId.get(id).label).join(', ')}, a N (${nWhere}) przychodzi spoza tej grupy. RCD zadziała przy obciążeniu.`});
     else if(!up.length&&anyRcdN.some(n=>sameComp(compNo,n,nNode)))issues.push({severity:'error',device:nb?nb.id:d.id,title:'N obwodu za RCD, faza przed RCD: '+ci.name,text:`N (${nWhere}) wraca przez wyłącznik różnicowoprądowy, a faza go omija. RCD zadziała przy obciążeniu.`});
    }
@@ -145,7 +154,7 @@ function analyze(s){
  }
 
  // Protective conductor: PE bars and SPD earth terminals must reach a PE source (WLZ PE/PEN core, PEN split block, GSU).
- {const compAll=components(E),peSrc=[...s.components.filter(c=>c.type==='WLZ').flatMap(c=>ports(c).filter(p=>p.role==='PE'||p.role==='PEN').map(p=>key(c.id,p.key))),...s.components.filter(c=>c.type==='GSU'||TYPES[c.type].penBridge).flatMap(c=>ports(c).filter(p=>p.role==='PE').map(p=>key(c.id,p.key)))];
+ {const compAll=components(E),peSrc=[...s.components.filter(c=>c.type==='WLZ'||c.type==='GEN').flatMap(c=>ports(c).filter(p=>p.role==='PE'||p.role==='PEN').map(p=>key(c.id,p.key))),...s.components.filter(c=>c.type==='GSU'||TYPES[c.type].penBridge).flatMap(c=>ports(c).filter(p=>p.role==='PE').map(p=>key(c.id,p.key)))];
   const peBars=s.components.filter(c=>TYPES[c.type].bar&&!TYPES[c.type].penBridge&&c.type!=='GSU'&&ports(c).every(p=>p.role==='PE')),spdPE=s.components.filter(c=>TYPES[c.type].spd).map(c=>({c,n:portOf(c,'b','PE')})).filter(x=>x.n);
   if(!peSrc.length){if(peBars.length||spdPE.length)issues.push({severity:'info',title:'Brak danych: źródło przewodu ochronnego',text:'Na planszy nie ma WLZ z żyłą PE/PEN, złączki rozdziału PEN ani GSU, więc nie sprawdzono, czy listwy PE i ograniczniki przepięć są połączone z przewodem ochronnym.'})}
   else{const ok=n=>peSrc.some(p=>sameComp(compAll,p,n));
@@ -160,6 +169,11 @@ function analyze(s){
  if(assigned.filter(v=>v>0).length>1&&max>=3000&&max>2*Math.max(min,1))issues.push({severity:'info',title:'Nierównomierne obciążenie faz',text:`L1 ${Math.round(res.balance.L1)} W · L2 ${Math.round(res.balance.L2)} W · L3 ${Math.round(res.balance.L3)} W (moc zainstalowana z listy obwodów). Najbardziej obciążona faza ma ponad 2× więcej niż najmniej obciążona. To wskazówka projektowa, nie wymóg normy.`});
  return res;
 }
-const api={edges,components,busbarLinks,underBusbar,analyze};
+// What is supplied with every changeover switch in position I and in position II (circuits with a device only).
+function byPosition(s){if(!s.components.some(c=>TYPES[c.type].changeover))return null;const out={};
+ for(const k of [1,2]){const r=analyze({...s,components:s.components.map(c=>TYPES[c.type].changeover?{...c,pos:k}:c)}),by=new Map(r.circuits.map(c=>[c.id,c])),g={grid:[],gen:[],none:[]};
+  for(const c of s.circuits){if(!c.device)continue;const x=by.get(c.id);(x?.status==='ok'?g[x.source==='gen'?'gen':'grid']:g.none).push(c.name)}out[k]=g}
+ return out}
+const api={edges,components,busbarLinks,underBusbar,analyze,byPosition};
 if(typeof module!=='undefined')module.exports=api;root.DINTopology=api;
 })(typeof window!=='undefined'?window:globalThis);

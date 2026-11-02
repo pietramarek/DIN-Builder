@@ -111,6 +111,14 @@ ${PEN_SVG}
 <li>Spadek napięcia obwodów podrozdzielnicy jest liczony od złącza: WLZ + obwód zasilający + obwód końcowy.</li>
 <li>Przy układzie TN-C-S podrozdzielnica dostaje układ TN-S – za punktem rozdziału PEN N i PE już się nie łączą.</li>
 </ol>`},
+{id:'gen',title:'Agregat i przełącznik 1-0-2',html:`
+<ol>
+<li>Dodaj <b>„Drugie źródło: agregat / falownik”</b> z katalogu (Zasilanie) – rysuje się jako drugi przewód wchodzący do obudowy. Ustaw liczbę żył w jego panelu.</li>
+<li>Dodaj <b>przełącznik 1-0-2</b>. Sieć podłącz do zacisków <b>I</b>, źródło 2 do zacisków <b>II</b>, a odbiory zasilaj z zacisków wspólnych (górnych).</li>
+<li>Kliknij przełącznik – w panelu zobaczysz, które obwody są zasilane w położeniu I (z sieci), a które w położeniu II (ze źródła 2) i co zostaje bez zasilania. Ta sama tabela jest na wydruku.</li>
+<li>Program zgłasza błąd, gdy przewody sieci i źródła 2 gdziekolwiek się spotykają (np. ominięcie przełącznika), oraz informuje o wspólnym N.</li>
+</ol>
+<p class="muted">Program nie dobiera agregatu ani nie sprawdza warunków ochrony przy zasilaniu z agregatu (uziemienie, impedancja pętli) – to wymaga projektu.</p>`},
 {id:'docs',title:'Dokumenty i pomiary',html:`
 <ul>
 <li><b>Dokumentacja projektu</b> – arkusz A4 do druku lub PDF.</li>

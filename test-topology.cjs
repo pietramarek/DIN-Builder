@@ -217,6 +217,16 @@ r=penx('TN-C-S');assert.ok(!titles(r).includes('Rozdział PEN za wyłącznikiem 
  b.components.push(dev('S9','SPD',3,5));rr=analyze(b);assert.ok(titles(rr).includes('Ogranicznik przepięć bez połączenia z PE: S9'));
  assert.ok(titles(analyze(board())).includes('Brak danych: źródło przewodu ochronnego'),'no PE source on the board: reported as missing data')}
 
+// Second source: changeover I = grid, II = generator; what each position supplies; grid and generator never meet
+{const b=board();b.components.push({...dev('G1','GEN',-1,0),cores:5},{...dev('S1','SW4',3,0),pos:1},dev('F9','MCB',3,5));
+ b.wires=b.wires.filter(w=>!(w.a.device==='Q0'&&w.a.port==='b0'&&w.b.device==='RCD2'));
+ b.wires.push(wire('Q0','b0','S1','b0'),wire('Q0','b1','S1','b2','L2'),wire('Q0','b2','S1','b4','L3'),wire('Q0','b3','S1','b6','N'),wire('G1','t0','S1','b1'),wire('G1','t1','S1','b3','L2'),wire('G1','t2','S1','b5','L3'),wire('G1','t3','S1','b7','N'),wire('S1','t0','F9','t0'));
+ b.circuits.push({id:'c9',name:'Lodówka awaryjna',device:'F9',power:300,cable:'3x2,5'});
+ let rr=analyze(b);assert.deepEqual(errors(rr),[],'changeover keeps sources apart');assert.equal(rr.circuits.find(c=>c.id==='c9').source,'grid');
+ b.components.find(c=>c.id==='S1').pos=2;rr=analyze(b);const c9=rr.circuits.find(c=>c.id==='c9');assert.equal(c9.status,'ok');assert.equal(c9.source,'gen','position II feeds from the generator');
+ const bp=require('./dist/topology.js').byPosition(b);assert.ok(bp[1].grid.includes('Lodówka awaryjna')&&bp[2].gen.includes('Lodówka awaryjna'));assert.ok(bp[2].grid.includes('Kuchnia'),'circuits outside the switch stay on the grid');
+ b.wires.push(wire('G1','t0','Q0','b0'));assert.ok(errors(analyze(b)).some(i=>i.title==='Sieć połączona z drugim źródłem'),'generator wired straight to the grid side')}
+
 // Other network systems: TN-C has no RCDs and N=PE is legitimate; IT and TT never join N with PE
 r=penx('TN-C');assert.ok(titles(r).includes('N i PE połączone (TN-C)'));assert.ok(errors(r).some(i=>i.title==='Wyłącznik różnicowoprądowy w układzie TN-C'),'RCD in TN-C');
 r=penx('IT');assert.ok(errors(r).some(i=>i.title==='Połączenie N z PE w układzie IT'));assert.ok(titles(r).includes('Układ IT – zakres kontroli'));

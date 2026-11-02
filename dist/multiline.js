@@ -81,7 +81,7 @@ function svg(s){
  if(L.orphanLevel!=null)g+=`<text x="${MARGIN}" y="${MARGIN+HEAD+L.orphanLevel*LEVEL_H-26}" class="ml-cap">Bez połączenia z zasilaniem w modelu</text>`;
  for(const c of s.components){const b=L.box.get(c.id),t=TYPES[c.type],names=s.circuits.filter(x=>x.device===c.id).map(x=>x.name);
   g+=`<g class="ml-dev"><rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" rx="4" class="ml-box ${t.entry?'ml-entry':''}"/>${symbol(s,L,c)}`;
-  g+=`<text x="${b.x}" y="${b.y-6}" class="ml-label">${esc(c.label)} <tspan class="ml-rating">${esc(t.entry?(s.network?.wlz?.cable||'WLZ'):c.rating)}</tspan></text>`;
+  g+=`<text x="${b.x}" y="${b.y-6}" class="ml-label">${esc(c.label)} <tspan class="ml-rating">${esc(t.source2?c.rating:t.entry?(s.network?.wlz?.cable||'WLZ'):c.rating)}</tspan></text>`;
   if(names.length)g+=`<text x="${b.x+b.w/2}" y="${b.y+b.h+30}" text-anchor="middle" class="ml-circ">→ ${esc(names.join(', ').slice(0,40))}${names.join(', ').length>40?'…':''}</text>`;
   g+='</g>'}
  // comb busbars
