@@ -36,6 +36,8 @@ for(const[k,role,col]of[['ZG','L','szara (L)'],['ZN','N','niebieska (N)'],['ZP',
 TYPES.ALCU={name:'Złączki przejściowe Al/Cu (bimetaliczne)',short:'Al/Cu',prefix:'X',width:4,rating:'Al → Cu',passive:true,cores:'through',poles:CORES[5]};
 // SPD and loads have no conducting path from top to bottom terminals (noThrough); meters always conduct (passive).
 TYPES.SPD.noThrough=true;TYPES.SPD.spd=true;
+// Residual-current devices (RCD, RCD2, RCBO): the single flag other files check instead of repeating this type list.
+TYPES.RCD.rcd=true;TYPES.RCD2.rcd=true;TYPES.RCBO.rcd=true;
 TYPES.SPD12={name:'Ogranicznik przepięć T1+T2',short:'SPD T1+T2',prefix:'SPD',width:4,rating:'Typ 1+2, model ogólny',noThrough:true,spd:true,poles:['L1','L2','L3','N'],bottom:['PE']};
 TYPES.METER1={name:'Licznik energii 1-fazowy',short:'kWh 1F',prefix:'P',width:2,rating:'Licznik 1F',passive:true,meter:true,poles:['L','N']};
 TYPES.METER3={name:'Licznik energii 3-fazowy',short:'kWh 3F',prefix:'P',width:4,rating:'Licznik 3F',passive:true,meter:true,poles:['L1','L2','L3','N']};
@@ -63,6 +65,9 @@ TYPES.TRD={name:'Transformator dzwonkowy',short:'Transf. dzw.',prefix:'T',width:
 TYPES.SMART={name:'Sterownik smart (przekaźnik Wi-Fi)',short:'Smart',prefix:'K',width:1,rating:'16 A, styk 1 NO',switching:true,poles:['L','N'],bottom:['L']};
 const isNBar=t=>!!(TYPES[t]&&TYPES[t].bar&&TYPES[t].poles.every(r=>r==='N'));
 const HOLES=[7,11,15];
+// Rated current parsed from a device's `rating` text (e.g. "B16", "40 A"). Shared so calc.js and topology.js read
+// the same set of characteristic letters instead of two independently maintained regexes.
+const ratedAmps=rating=>{const m=String(rating||'').match(/\b[BCDEKZ]\s*(\d+(?:[.,]\d+)?)\b/i)||String(rating||'').match(/(\d+(?:[.,]\d+)?)\s*A\b/);return m?Number(m[1].replace(',','.')):null};
 
 const exampleName=t=>{const e=TYPES[t]&&TYPES[t].example;return e?e.brand.split(' ')[0]+' '+e.series+' '+e.name+' ('+e.ref+')':''};
 const edgePorts=c=>['t','b'].flatMap(side=>(side==='b'?(TYPES[c.type].bottom||TYPES[c.type].poles):TYPES[c.type].poles).map((role,i)=>({key:side+i,role,side,i,count:(side==='b'?(TYPES[c.type].bottom||TYPES[c.type].poles):TYPES[c.type].poles).length})));
@@ -105,5 +110,5 @@ const MAIN_TYPES=['MAIN','MAIN2'];
 // Older projects used DB2/DB4/DB5 with 4 edge terminals per pole. They move to the grid model when the wider
 // block fits in place; each old terminal maps to a distinct hole of the same pole, wires follow.
 function migrateBlocks(s){if(!Array.isArray(s.components)||!Array.isArray(s.wires))return;for(const c of s.components){if(!c||!['DB2','DB4','DB5'].includes(c.type))continue;const P=+c.type.slice(2),h=[7,11,15].find(n=>new RegExp('×\\s*'+n+'\\b').test(c.rating||''))||7,nt=`DB${P}_${h}`;if(!fits(s,{...c,type:nt},c.row,c.slot))continue;const map=new Map(),used=new Map();for(const p of edgePorts(c)){const r=GRID_POLES[P].indexOf(p.role),k=used.get(r)||0;used.set(r,k+1);map.set(p.key,`g${r}_${k}`)}for(const w of s.wires)for(const e of [w.a,w.b])if(e&&e.device===c.id&&map.has(e.port))e.port=map.get(e.port);c.type=nt}}
-const api={CORES,WIRE_GAUGES:[1.5,2.5,4,6,10,16,25,35],portPos,CIRCUIT_DEVICES,isNBar,HOLES,TYPES,BUSBARS,BUSBAR_DEVICES,NETWORK,MAIN_TYPES,exampleName,LIMITS,dims,validDims,ports,getPort,fits,canConnect,validate,parse};if(typeof module!=='undefined')module.exports=api;root.DIN=api;
+const api={CORES,WIRE_GAUGES:[1.5,2.5,4,6,10,16,25,35],portPos,CIRCUIT_DEVICES,isNBar,HOLES,TYPES,BUSBARS,BUSBAR_DEVICES,NETWORK,MAIN_TYPES,exampleName,ratedAmps,LIMITS,dims,validDims,ports,getPort,fits,canConnect,validate,parse};if(typeof module!=='undefined')module.exports=api;root.DIN=api;
 })(typeof window!=='undefined'?window:globalThis);

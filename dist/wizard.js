@@ -119,7 +119,7 @@ function generate(inp){
  const mainAmps=(()=>{const L=phaseCurrents(circuits);return three?Math.max(...L):L[0]})();
  const mainRating=pickRating(mainAmps);
  if(mainRating===undefined)return{errors:[`Całkowity prąd (ok. ${Math.round(mainAmps)} A, bez współczynnika jednoczesności) przekracza ${PROT_IN.at(-1)} A – za duże obciążenie dla wyłącznika modułowego w kreatorze.`]};
- const fuseA=(()=>{const m=String(inp.mainFuse||'').match(/(\d+(?:[.,]\d+)?)\s*A\b/);return m?Number(m[1].replace(',','.')):null})();
+ const fuseA=C.fuseAmps(inp.mainFuse);
  const warnings=[];
  if(fuseA!=null&&mainAmps>fuseA)warnings.push(`Obliczony prąd obciążenia (ok. ${Math.round(mainAmps)} A, bez współczynnika jednoczesności) przekracza podane zabezpieczenie przedlicznikowe (${fuseA} A). Sprawdź zamówioną moc u operatora sieci albo zmniejsz obciążenie.`);
  const comps=[],wires=[],busbars=[],outCircuits=[];

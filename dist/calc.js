@@ -2,7 +2,7 @@
 // Scope and assumptions are reported with every result; missing input is reported as missing, never assumed.
 (function(root){
 const M=root.DIN||require('./model.js');
-const {TYPES}=M;
+const {TYPES,MAIN_TYPES}=M;
 
 // PN-HD 60364-5-52, tab. B.52.2: copper, PVC insulation (70 °C), two loaded conductors, ambient 30 °C, values in A.
 // No correction for ambient temperature, grouping or thermal insulation is applied.
@@ -16,7 +16,7 @@ const LIMIT={light:3,other:5};
 const GAMMA_CU=56,GAMMA_AL=34,UN=230,UL=400; // conductivity m/(Ω·mm²), common design values for Cu and Al; nominal voltages
 
 const num=s=>Number(String(s).replace(',','.'));
-function ratedCurrent(rating){const m=String(rating||'').match(/\b[BCDEKZ]\s*(\d+(?:[.,]\d+)?)\b/i)||String(rating||'').match(/(\d+(?:[.,]\d+)?)\s*A\b/);return m?num(m[1]):null}
+const ratedCurrent=M.ratedAmps;
 function crossSection(cable){const m=String(cable||'').match(/[x×]\s*(\d+(?:[.,]\d+)?)/i);return m?num(m[1]):null}
 const fmt=(v,d=1)=>v.toLocaleString('pl-PL',{maximumFractionDigits:d,minimumFractionDigits:d});
 
@@ -90,7 +90,7 @@ function checkCircuit(s,c,wlz){
 function analyzeCircuits(s,ctx=api.contextFor?api.contextFor(s):undefined){const wlz=wlzCheck(s,ctx),results=s.circuits.map(c=>checkCircuit(s,c,wlz));return{results,wlz,issues:[...wlz.issues,...selectivity(s,wlz,results),...results.flatMap(r=>r.issues)]}}
 // Simplified selectivity: compares rated currents only (a downstream device should be smaller than the one above it).
 // Real selectivity needs the manufacturers' tables; this only catches the obvious cases.
-function selectivity(s,wlz,results){const n=s.network||{},out=[],mains=s.components.filter(c=>c.type==='MAIN'||c.type==='MAIN2'),fuseIn=wlz.fed?null:preMeter(s).In;
+function selectivity(s,wlz,results){const n=s.network||{},out=[],mains=s.components.filter(c=>MAIN_TYPES.includes(c.type)),fuseIn=wlz.fed?null:preMeter(s).In;
  let up=wlz.fed?(wlz.upIn!=null?{In:wlz.upIn,what:'zabezpieczenie obwodu zasilającego w '+(wlz.label.split(' / ')[0]||'rozdzielnicy nadrzędnej')}:null):fuseIn!=null?{In:fuseIn,what:'zabezpieczenie przedlicznikowe'}:null;
  for(const m of mains){const bc=breakerCurve(m.rating),In=ratedCurrent(m.rating);if(In==null)continue;
   if(bc){if(up&&In>=up.In)out.push({severity:'warn',device:m.id,title:'Brak wybiórczości: '+m.label,text:`Wyłącznik główny ${m.label} (${fmt(In,0)} A) nie jest mniejszy niż ${up.what} (${fmt(up.In,0)} A). Przy zwarciu może zadziałać zabezpieczenie nadrzędne. Kontrola uproszczona – porównanie prądów znamionowych.`});up={In,what:'wyłącznik główny '+m.label}}

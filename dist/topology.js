@@ -5,7 +5,7 @@
 const M=root.DIN||require('./model.js');
 const {TYPES,BUSBARS,BUSBAR_DEVICES,MAIN_TYPES,ports}=M;
 const CORES_PEN=n=>(M.CORES[n]||[]).includes('PEN');
-const LIVE=['L1','L2','L3'],SOURCES=[...LIVE,'N'],RCD_TYPES=['RCD','RCD2','RCBO'];
+const LIVE=['L1','L2','L3'],SOURCES=[...LIVE,'N'],RCD_TYPES=Object.keys(TYPES).filter(t=>TYPES[t].rcd);
 const key=(device,port)=>device+':'+port;
 const span=c=>[c.slot,c.slot+TYPES[c.type].width-1];
 const busbarsOf=s=>Array.isArray(s.busbars)?s.busbars:[];
@@ -44,7 +44,7 @@ const sameComp=(comp,a,b)=>comp.has(a)&&comp.get(a)===comp.get(b);
 
 function analyze(s){
  const issues=[],E=edges(s),mains=s.components.filter(c=>MAIN_TYPES.includes(c.type)),wlzs=s.components.filter(c=>c.type==='WLZ'),gens=s.components.filter(c=>c.type==='GEN'),services=s.components.filter(c=>c.type==='SUPPLY'),net=s.network||{},byId=new Map(s.components.map(c=>[c.id,c]));
- const res={supplied:mains.length>0||wlzs.length>0||services.length>0,circuits:[],balance:{L1:0,L2:0,L3:0,unknown:0,total:0},issues,phaseOf:new Map()};
+ const res={supplied:mains.length>0||wlzs.length>0||services.length>0,circuits:[],balance:{L1:0,L2:0,L3:0,unknown:0,total:0},issues};
  const roleOf=node=>{const[d,p]=node.split(':');const c=byId.get(d);return c&&ports(c).find(x=>x.key===p)?.role};
  const label=node=>{const[d,p]=node.split(':');const c=byId.get(d);const pt=c&&ports(c).find(x=>x.key===p);return c?c.label+' / '+(pt.side==='t'?'góra ':'dół ')+pt.role:node};
 
@@ -123,11 +123,16 @@ function analyze(s){
  for(let i=0;i<rcds.length;i++)for(let j=i+1;j<rcds.length;j++){const a=portOf(rcds[i],'b','N'),b=portOf(rcds[j],'b','N');if(a&&b&&sameComp(compNo,a,b))issues.push({severity:'error',device:rcds[j].id,title:'Wspólny N dla dwóch grup RCD',text:`Przewody N za ${rcds[i].label} i za ${rcds[j].label} są połączone. Każda grupa RCD potrzebuje własnego N, inaczej wyłączniki będą wyzwalać bez usterki.`})}
  const peNodes=[...compNo.keys()].filter(n=>!n.startsWith('bb:')&&roleOf(n)==='PE');
  for(const r of rcds){const bn=portOf(r,'b','N');if(bn&&peNodes.some(pn=>sameComp(compNo,pn,bn)))issues.push({severity:'error',device:r.id,title:'N połączony z PE za '+r.label,text:`Przewód N za ${r.label} łączy się z PE. Prąd wróci przez PE i RCD zadziała; rozdział PEN może być tylko przed RCD.`})}
- const rcdsReaching=(node,phase,gen=false)=>rcds.filter(r=>{const own=E.filter(e=>e.kind==='device'&&e.device===r.id);return supply(noRcdEdges.concat(own),gen?genStarts:starts,gen?SOURCES:active).get(node)?.has(phase)&&!(gen?noRcdGen:noRcd).get(node)?.has(phase)}).map(r=>r.id);
+ // Supply reachability with just one RCD "closed" (its own device edges added back) depends only on which RCD and
+ // which supply context (grid/gen) - not on the node/phase being asked about - so it is computed once per RCD here
+ // instead of once per circuit pole/socket query below.
+ const rcdSupply=new Map(rcds.map(r=>[r.id,supply(noRcdEdges.concat(E.filter(e=>e.kind==='device'&&e.device===r.id)),starts,active)]));
+ const rcdSupplyGen=gens.length?new Map(rcds.map(r=>[r.id,supply(noRcdEdges.concat(E.filter(e=>e.kind==='device'&&e.device===r.id)),genStarts,SOURCES)])):new Map();
+ const rcdsReaching=(node,phase,gen=false)=>rcds.filter(r=>(gen?rcdSupplyGen:rcdSupply).get(r.id).get(node)?.has(phase)&&!(gen?noRcdGen:noRcd).get(node)?.has(phase)).map(r=>r.id);
 
  // Circuits
  for(const ci of s.circuits){
-  const d=byId.get(ci.device),row={id:ci.id,status:'unassigned',phase:null,rcd:[]};
+  const d=byId.get(ci.device),row={id:ci.id,device:ci.device,status:'unassigned',phase:null,rcd:[]};
   res.balance.total+=ci.power;
   if(!d){res.balance.unknown+=ci.power;res.circuits.push(row);continue}
   // Each pole of a multi-pole breaker is followed separately; power is split evenly over its phases.
@@ -138,7 +143,7 @@ function analyze(s){
   else if(per.some(p=>!p.length)){row.status='partial';res.balance.unknown+=ci.power;issues.push({severity:'warn',device:d.id,title:'Niepełne zasilanie: '+ci.name,text:`Nie wszystkie bieguny ${d.label} mają napięcie (w modelu). Odbiornik wielofazowy pracowałby bez jednej fazy.`})}
   else{
    const phases=per.map(p=>p[0]);
-   row.status='ok';row.phases=phases;row.phase=phases.join('+');if(gen)res.balance.gen=(res.balance.gen||0)+ci.power;else for(const p of phases)res.balance[p]+=ci.power/phases.length;res.phaseOf.set(ci.id,row.phase);
+   row.status='ok';row.phases=phases;row.phase=phases.join('+');if(!gen)for(const p of phases)res.balance[p]+=ci.power/phases.length;
    if(new Set(phases).size<phases.length)issues.push({severity:'warn',device:d.id,title:'Bieguny na tej samej fazie: '+ci.name,text:`${d.label} ma kilka biegunów zasilanych z ${[...new Set(phases)].join(', ')}. Odbiornik wielofazowy wymaga różnych faz – sprawdź przewody i szynę grzebieniową.`});
    row.rcd=d.type==='RCBO'?[d.id]:outs.map((o,i)=>rcdsReaching(o,phases[i],gen)).reduce((a,b)=>a.filter(x=>b.includes(x)));
    if(!row.rcd.length)issues.push({severity:'warn',device:d.id,title:'Obwód bez ochrony RCD: '+ci.name,text:`Faza ${d.label} nie przechodzi przez wyłącznik różnicowoprądowy. Wiele obwodów w mieszkaniach wymaga ochrony dodatkowej RCD ≤30 mA (PN-HD 60364-4-41) – sprawdź przeznaczenie obwodu.`});
@@ -170,8 +175,7 @@ function analyze(s){
   if(!ph.length)issues.push({severity:'warn',device:g.id,title:'Gniazdo bez zasilania: '+g.label,text:`Zacisk L ${g.label} nie jest połączony z fazą (w modelu).`});
   else if(!rcdsReaching(p,ph[0]).length)issues.push({severity:'warn',device:g.id,title:'Gniazdo bez ochrony RCD: '+g.label,text:`${g.label} jest zasilane z ${ph[0]} z pominięciem wyłącznika różnicowoprądowego. Gniazda wymagają ochrony dodatkowej RCD ≤30 mA (PN-HD 60364-4-41, 411.3.3).`})}
  // RCD rated current: should not be lower than the largest overcurrent device it feeds (simple comparison).
- {const amps=t=>{const m=String(t||'').match(/\b[BCDKZ]\s*(\d+(?:[.,]\d+)?)\b/i)||String(t||'').match(/(\d+(?:[.,]\d+)?)\s*A\b/);return m?Number(m[1].replace(',','.')):null};
-  for(const r of rcds.filter(x=>x.type!=='RCBO')){const own=amps(r.rating);if(own==null)continue;const below=res.circuits.filter(c=>c.rcd?.includes(r.id)).map(c=>byId.get(s.circuits.find(x=>x.id===c.id)?.device)).filter(Boolean),mx=Math.max(0,...below.map(d=>amps(d.rating)||0));
+ {for(const r of rcds.filter(x=>x.type!=='RCBO')){const own=M.ratedAmps(r.rating);if(own==null)continue;const below=res.circuits.filter(c=>c.rcd?.includes(r.id)).map(c=>byId.get(c.device)).filter(Boolean),mx=Math.max(0,...below.map(d=>M.ratedAmps(d.rating)||0));
    if(mx>own)issues.push({severity:'warn',device:r.id,title:'RCD słabszy niż wyłącznik za nim: '+r.label,text:`${r.label} ma ${own} A, a za nim jest wyłącznik ${mx} A. Prąd znamionowy RCD powinien być co najmniej taki jak największe zabezpieczenie za nim (lub RCD musi być chroniony przed przeciążeniem zabezpieczeniem przed nim) – sprawdź w danych producenta.`})}}
  // Phase balance: reported as information only; there is no single normative limit for a dwelling.
  const assigned=LIVE.map(l=>res.balance[l]),max=Math.max(...assigned),min=Math.min(...assigned);

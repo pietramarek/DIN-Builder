@@ -83,7 +83,7 @@ ${PEN_SVG}
 <tr><td>L2</td><td>czarny</td><td><span class="sw" style="background:#303e46"></span> czarny</td></tr>
 <tr><td>L3</td><td>szary</td><td><span class="sw" style="background:#d23a2f"></span> czerwony – dla czytelności na planszy</td></tr>
 <tr><td>N</td><td>niebieski</td><td><span class="sw" style="background:#2f8cc6"></span> niebieski</td></tr>
-<tr><td>PE</td><td>zielono-żółty</td><td><span class="sw" style="background:#61a33a"></span> zielony</td></tr>
+<tr><td>PE</td><td>zielono-żółty</td><td><span class="sw" style="background:#3c9a3e"></span> zielony</td></tr>
 <tr><td>PEN</td><td>zielono-żółty z niebieskimi końcami (lub odwrotnie)</td><td><span class="sw" style="background:#2f7f6a"></span> zielono-niebieski</td></tr>
 </tbody></table>`},
 {id:'wlz',title:'WLZ i złączki Al/Cu',html:`

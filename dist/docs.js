@@ -69,7 +69,7 @@ function protocolRows(s){
  const p=s.protocol||{},byId=new Map(s.components.map(c=>[c.id,c])),calc=root.DINCalc?new Map(root.DINCalc.analyzeCircuits(s).results.map(r=>[r.id,r])):new Map();
  const circuits=s.circuits.map((c,i)=>{const dev=byId.get(c.device),b=dev&&CIRCUIT_DEVICES.includes(dev.type)?breakerData(dev.rating):null,Ia=b?CURVE_K[b.curve]*b.In:null,zsMax=Ia?U0/Ia:null,m=p.circuits?.[c.id]||{};
   return{id:c.id,nr:i+1,name:c.name,device:dev?dev.label:'',rating:dev?dev.rating:'',Ia,zsMax,zsPred:calc.get(c.id)?.zs??null,zs:m.zs??null,riso:m.riso??null,zsOk:verdict(m.zs,zsMax!=null?m.zs<=zsMax:null),risoOk:verdict(m.riso,m.riso>=RISO_MIN)}});
- const rcds=s.components.filter(c=>['RCD','RCD2','RCBO'].includes(c.type)).sort((a,b)=>a.row-b.row||a.slot-b.slot).map(c=>{const idn=idnOf(c.rating),m=p.rcd?.[c.id]||{};
+ const rcds=s.components.filter(c=>TYPES[c.type].rcd).sort((a,b)=>a.row-b.row||a.slot-b.slot).map(c=>{const idn=idnOf(c.rating),m=p.rcd?.[c.id]||{};
   return{id:c.id,label:c.label,rating:c.rating,idn,t:m.t??null,i:m.i??null,tOk:verdict(m.t,m.t<=RCD_T_MAX),iOk:verdict(m.i,idn!=null?m.i>=0.5*idn&&m.i<=idn:null)}});
  const marks=[...circuits.flatMap(r=>[r.zsOk,r.risoOk]),...rcds.flatMap(r=>[r.tOk,r.iOk])];
  return{circuits,rcds,summary:{measured:marks.filter(v=>v!==null).length,failed:marks.filter(v=>v===false).length,total:marks.length}};
